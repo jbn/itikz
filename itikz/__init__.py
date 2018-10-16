@@ -10,7 +10,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 
 def fetch_or_compile_svg(src, prefix='', cleanup=True):

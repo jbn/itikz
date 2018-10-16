@@ -12,3 +12,10 @@ History
 ------------------
 
 * Emit error messages.
+
+
+0.0.3 (2018-10-16)
+------------------
+
+* Add line magic usage
+* Change to load_ext pattern

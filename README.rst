@@ -31,11 +31,11 @@ Install it:
 
     pip install itikz
 
-Import it:
+Load it:
 
 .. code:: python
 
-    import itikz
+    %load_ext itikz
 
 Use it (this example from `Austin <https://notgnoshi.github.io/svg-with-tikz/>`__):
 
