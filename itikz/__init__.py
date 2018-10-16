@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+import argparse
 import os
+import shlex
 import sys
+import tempfile
 from shutil import fnmatch
 from subprocess import check_output, CalledProcessError
 from hashlib import md5
@@ -10,11 +13,42 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 
-def fetch_or_compile_svg(src, prefix='', cleanup=True):
+def parse_args(line):
+    parser = argparse.ArgumentParser(description='Tikz to tex to SVG')
+
+    parser.add_argument('k', type=str, nargs='?',
+                        help='the variable in IPython with the string source')
+
+    parser.add_argument('--temp-dir', dest='temp_dir', action='store_true',
+                        default=False, help='emit artifacts to system temp dir')
+
+    parser.add_argument('--file-prefix', dest='file_prefix',
+                        default='', help='emit artifacts with a path prefix')
+
+    return parser, parser.parse_args(shlex.split(line))
+
+
+def get_cwd(args):
+    if args.temp_dir:
+        cwd = os.path.join(tempfile.gettempdir(), 'itikz')
+        os.makedirs(cwd, exist_ok=True)
+        print(cwd)
+        return cwd
+    else:
+        return None
+
+    # if args.file_prefix:
+    #     output_prefix = os.path.join(output_prefix, args.file_prefix)
+
+
+def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
     output_path = prefix + md5(src.encode()).hexdigest()
+    if working_dir is not None:
+        output_path = os.path.join(working_dir, output_path)
+    print(output_path)
     svg_path = output_path + ".svg"
 
     if not os.path.exists(svg_path):
@@ -25,8 +59,8 @@ def fetch_or_compile_svg(src, prefix='', cleanup=True):
             fp.write(src)
 
         try:
-            check_output(["pdflatex", tex_path])
-            check_output(["pdf2svg", pdf_path, svg_path])
+            check_output(["pdflatex", tex_path], cwd=working_dir)
+            check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
         except CalledProcessError as e:
             for del_file in [tex_path, pdf_path, svg_path]:
                 if os.path.exists(del_file):
@@ -50,17 +84,18 @@ class MyMagics(Magics):
     @line_cell_magic
     def itikz(self, line, cell=None):
         src = cell
+        parser, args = parse_args(line)
 
         if cell is None:
-            d, k = self.shell.user_ns, line.strip()
+            d = self.shell.user_ns
 
-            if not line or k not in d:
-                print("Line magic usage: `%itikz variable`", sys.stderr)
+            if args.k is None or args.k not in d:
+                parser.print_usage(file=sys.stderr)
                 return
 
-            src = d[k]
+            src = d[args.k]
 
-        return fetch_or_compile_svg(src)
+        return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
 
 def load_ipython_extension(ipython):

@@ -19,3 +19,10 @@ History
 
 * Add line magic usage
 * Change to load_ext pattern
+
+0.0.4 (2018-10-16)
+------------------
+
+* Add argparse parsing for line and cell magic
+* Add --temp-dir option to reduce clutter
+* Add --file_prefix for organization
