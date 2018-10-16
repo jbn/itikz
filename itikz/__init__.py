@@ -5,7 +5,7 @@ from shutil import fnmatch
 from subprocess import check_output, CalledProcessError
 from hashlib import md5
 from IPython.display import SVG
-from IPython.core.magic import register_cell_magic
+from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 
 __author__ = """John Bjorn Nelson"""
@@ -44,6 +44,31 @@ def fetch_or_compile_svg(src, prefix='', cleanup=True):
         return SVG(fp.read())
 
 
-@register_cell_magic
-def itikz(line, cell):
-    return fetch_or_compile_svg(cell)
+@magics_class
+class MyMagics(Magics):
+
+    @line_cell_magic
+    def itikz(self, line, cell=None):
+        src = cell
+
+        if cell is None:
+            d, k = self.shell.user_ns, line.strip()
+
+            if not line or k not in d:
+                print("Line magic usage: `%itikz variable`", sys.stderr)
+                return
+
+            src = d[k]
+
+        return fetch_or_compile_svg(src)
+
+
+def load_ipython_extension(ipython):
+    """
+    Any module file that define a function named `load_ipython_extension`
+    can be loaded via `%load_ext module.path` or be configured to be
+    autoloaded by IPython at startup time.
+    """
+    # You can register the class itself without instantiating it.  IPython will
+    # call the default constructor on it.
+    ipython.register_magics(MyMagics)
