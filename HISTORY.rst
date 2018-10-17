@@ -44,3 +44,9 @@ History
 * Add --tikz-libraries
 * Add --tex-packages
 * Add --implicit-standalone
+
+0.0.8 (2018-10-16)
+------------------
+
+* Add jinja2 templating
+* Add jinja2 interpolated code debug printing
