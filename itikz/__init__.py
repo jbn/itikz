@@ -4,9 +4,10 @@ import os
 import shlex
 import sys
 import tempfile
-from shutil import fnmatch
-from subprocess import check_output, CalledProcessError
 from hashlib import md5
+from shutil import fnmatch
+from string import Template
+from subprocess import check_output, CalledProcessError
 from IPython.display import SVG
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 
@@ -16,6 +17,14 @@ __email__ = 'jbn@abreka.com'
 __version__ = '0.0.5'
 
 
+IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
+\begin{document}
+\begin{tikzpicture}
+$src
+\end{tikzpicture}
+\end{document}""")
+
+
 def parse_args(line):
     parser = argparse.ArgumentParser(description='Tikz to tex to SVG')
 
@@ -23,10 +32,15 @@ def parse_args(line):
                         help='the variable in IPython with the string source')
 
     parser.add_argument('--temp-dir', dest='temp_dir', action='store_true',
-                        default=False, help='emit artifacts to system temp dir')
+                        default=False,
+                        help='emit artifacts to system temp dir')
 
     parser.add_argument('--file-prefix', dest='file_prefix',
                         default='', help='emit artifacts with a path prefix')
+
+    parser.add_argument('--implicit-pic', dest='implicit_pic',
+                        action='store_true', default=False,
+                        help='wrap source in implicit tikzpicture document')
 
     return parser, parser.parse_args(shlex.split(line))
 
@@ -89,6 +103,9 @@ class MyMagics(Magics):
                 return
 
             src = d[args.k]
+
+        if args.implicit_pic:
+            src = IMPLICIT_PIC_TMPL.substitute(src=src)
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
