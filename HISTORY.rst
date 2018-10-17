@@ -30,3 +30,12 @@ History
 
 * Add Quickstart notebook as a demo
 * Remove print statements introduced during debugging
+
+0.0.6 (2018-10-16)
+------------------
+
+* Add ITIKZ_TEMP_DIR environmental variable usage
+* Add --implicit-pic
+
+* Add Quickstart notebook as a demo
+* Remove print statements introduced during debugging
