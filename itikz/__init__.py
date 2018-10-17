@@ -33,6 +33,13 @@ $src
 \end{document}""")
 
 
+JINJA2_ENABLED = True
+try:
+    import jinja2
+except ImportError:
+    JINJA2_ENABLED = False
+
+
 def parse_args(line):
     parser = argparse.ArgumentParser(description='Tikz to tex to SVG')
 
@@ -65,6 +72,14 @@ def parse_args(line):
     parser.add_argument('--tex-packages', dest='tex_packages',
                         default='',
                         help='Comma separated list of tex packages to use')
+
+    parser.add_argument('--as-jinja2', dest='as_jinja2',
+                        action='store_true', default=False,
+                        help="Interpret the source as a jinja2 template")
+
+    parser.add_argument('--print-jinja2', dest='print_jinja2',
+                        action='store_true', default=False,
+                        help="Print interpolated jinja2 source then bail.")
 
     return parser, parser.parse_args(shlex.split(line))
 
@@ -111,6 +126,13 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
         return SVG(fp.read())
 
 
+def load_and_interpolate_jinja2(src, ns):
+    fs_loader = jinja2.FileSystemLoader(os.getcwd())
+    tmpl_env = jinja2.Environment(loader=fs_loader)
+    tmpl = tmpl_env.from_string(src)
+    return tmpl.render(**ns)
+
+
 @magics_class
 class MyMagics(Magics):
 
@@ -118,15 +140,15 @@ class MyMagics(Magics):
     def itikz(self, line, cell=None):
         src = cell
         parser, args = parse_args(line)
+        ipython_ns = self.shell.user_ns
 
         if cell is None:
-            d = self.shell.user_ns
 
-            if args.k is None or args.k not in d:
+            if args.k is None or args.k not in ipython_ns:
                 parser.print_usage(file=sys.stderr)
                 return
 
-            src = d[args.k]
+            src = ipython_ns[args.k]
 
         if args.implicit_pic and args.implicit_standalone:
             print("Can't use --implicit-standalone and --implicit-pic",
@@ -136,6 +158,16 @@ class MyMagics(Magics):
         elif args.implicit_standalone:
             tmpl_args = build_template_args(src, args)
             src = IMPLICIT_STANDALONE.substitute(tmpl_args)
+        elif args.as_jinja2:
+            if not JINJA2_ENABLED:
+                print("Please install jinja2", file=sys.stderr)
+                print("$ pip install jinja2", file=sys.stderr)
+                return
+            src = load_and_interpolate_jinja2(src, ipython_ns)
+
+            if args.print_jinja2:
+                print(src)
+                return
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
