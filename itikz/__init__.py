@@ -26,6 +26,13 @@ $src
 \end{document}""")
 
 
+IMPLICIT_STANDALONE = Template(r"""\documentclass{standalone}
+$extras
+\begin{document}
+$src
+\end{document}""")
+
+
 def parse_args(line):
     parser = argparse.ArgumentParser(description='Tikz to tex to SVG')
 
@@ -42,6 +49,10 @@ def parse_args(line):
     parser.add_argument('--implicit-pic', dest='implicit_pic',
                         action='store_true', default=False,
                         help='wrap source in implicit tikzpicture document')
+
+    parser.add_argument('--implicit-standalone', dest='implicit_standalone',
+                        action='store_true', default=False,
+                        help='wrap source in implicit document')
 
     parser.add_argument('--scale', dest='scale',
                         default='1',
@@ -117,8 +128,14 @@ class MyMagics(Magics):
 
             src = d[args.k]
 
-        if args.implicit_pic:
+        if args.implicit_pic and args.implicit_standalone:
+            print("Can't use --implicit-standalone and --implicit-pic",
+                  file=sys.stderr)
+        elif args.implicit_pic:
             src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
+        elif args.implicit_standalone:
+            tmpl_args = build_template_args(src, args)
+            src = IMPLICIT_STANDALONE.substitute(tmpl_args)
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
