@@ -7,12 +7,10 @@ History
 
 * First release on PyPI.
 
-
 0.0.2 (2018-10-13)
 ------------------
 
 * Emit error messages.
-
 
 0.0.3 (2018-10-16)
 ------------------
@@ -26,3 +24,9 @@ History
 * Add argparse parsing for line and cell magic
 * Add --temp-dir option to reduce clutter
 * Add --file_prefix for organization
+
+0.0.5 (2018-10-16)
+------------------
+
+* Add Quickstart notebook as a demo
+* Remove print statements introduced during debugging
