@@ -18,6 +18,7 @@ __version__ = '0.0.6'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
+$extras
 \begin{document}
 \begin{tikzpicture}[scale=$scale]
 $src
@@ -45,6 +46,14 @@ def parse_args(line):
     parser.add_argument('--scale', dest='scale',
                         default='1',
                         help='Set tikzpicture scale in --implicit-pic tmpl')
+
+    parser.add_argument('--tikz-libraries', dest='tikz_libraries',
+                        default='',
+                        help='Comma separated list of tikz libraries to use')
+
+    parser.add_argument('--tex-packages', dest='tex_packages',
+                        default='',
+                        help='Comma separated list of tex packages to use')
 
     return parser, parser.parse_args(shlex.split(line))
 
@@ -109,10 +118,26 @@ class MyMagics(Magics):
             src = d[args.k]
 
         if args.implicit_pic:
-            scale = float(args.scale)
-            src = IMPLICIT_PIC_TMPL.substitute(src=src, scale=scale)
+            src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
+
+
+def build_template_args(src, args):
+    extras = []
+
+    if args.tex_packages:
+        extras.append(r"\usepackage{" + args.tex_packages + "}")
+
+    if args.tikz_libraries:
+        extras.append(r"\usetikzlibrary{" + args.tikz_libraries + "}")
+
+    extras = "\n".join(extras)
+
+    return dict(src=src,
+                scale=float(args.scale),
+                extras=extras)
+
 
 
 def load_ipython_extension(ipython):
