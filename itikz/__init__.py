@@ -19,7 +19,7 @@ __version__ = '0.0.6'
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
 \begin{document}
-\begin{tikzpicture}
+\begin{tikzpicture}[scale=$scale]
 $src
 \end{tikzpicture}
 \end{document}""")
@@ -41,6 +41,10 @@ def parse_args(line):
     parser.add_argument('--implicit-pic', dest='implicit_pic',
                         action='store_true', default=False,
                         help='wrap source in implicit tikzpicture document')
+
+    parser.add_argument('--scale', dest='scale',
+                        default='1',
+                        help='Set tikzpicture scale in --implicit-pic tmpl')
 
     return parser, parser.parse_args(shlex.split(line))
 
@@ -105,7 +109,8 @@ class MyMagics(Magics):
             src = d[args.k]
 
         if args.implicit_pic:
-            src = IMPLICIT_PIC_TMPL.substitute(src=src)
+            scale = float(args.scale)
+            src = IMPLICIT_PIC_TMPL.substitute(src=src, scale=scale)
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
