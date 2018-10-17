@@ -32,7 +32,7 @@ def parse_args(line):
 
 
 def get_cwd(args):
-    if args.temp_dir:
+    if args.temp_dir or os.environ.get('ITIKZ_TEMP_DIR'):
         cwd = os.path.join(tempfile.gettempdir(), 'itikz')
         os.makedirs(cwd, exist_ok=True)
         return cwd
