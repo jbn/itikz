@@ -35,7 +35,6 @@ def get_cwd(args):
     if args.temp_dir:
         cwd = os.path.join(tempfile.gettempdir(), 'itikz')
         os.makedirs(cwd, exist_ok=True)
-        print(cwd)
         return cwd
     else:
         return None
@@ -48,7 +47,6 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
     output_path = prefix + md5(src.encode()).hexdigest()
     if working_dir is not None:
         output_path = os.path.join(working_dir, output_path)
-    print(output_path)
     svg_path = output_path + ".svg"
 
     if not os.path.exists(svg_path):
