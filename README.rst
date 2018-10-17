@@ -13,6 +13,9 @@ itikz
         :target: https://itikz.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
+.. image:: https://travis-ci.org/jbn/itikz.svg?branch=master
+        :target: https://travis-ci.org/jbn/itikz
+
 
 
 Cell magic for PGF/TikZ-to-SVG rendering in Jupyter
