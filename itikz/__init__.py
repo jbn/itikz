@@ -39,9 +39,6 @@ def get_cwd(args):
     else:
         return None
 
-    # if args.file_prefix:
-    #     output_prefix = os.path.join(output_prefix, args.file_prefix)
-
 
 def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
     output_path = prefix + md5(src.encode()).hexdigest()
