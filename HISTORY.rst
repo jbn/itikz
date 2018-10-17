@@ -37,5 +37,10 @@ History
 * Add ITIKZ_TEMP_DIR environmental variable usage
 * Add --implicit-pic
 
-* Add Quickstart notebook as a demo
-* Remove print statements introduced during debugging
+0.0.7 (2018-10-16)
+------------------
+
+* Add --scale arg
+* Add --tikz-libraries
+* Add --tex-packages
+* Add --implicit-standalone

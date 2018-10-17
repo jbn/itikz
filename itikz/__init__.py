@@ -14,7 +14,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
