@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import argparse
 import os
 import shlex
@@ -41,7 +40,9 @@ except ImportError:
 
 
 def parse_args(line):
-    parser = argparse.ArgumentParser(description='Tikz to tex to SVG')
+    parser = argparse.ArgumentParser(prog="%%itikz",
+                                     description='Tikz to tex to SVG',
+                                     add_help=False)
 
     parser.add_argument('k', type=str, nargs='?',
                         help='the variable in IPython with the string source')
@@ -81,6 +82,11 @@ def parse_args(line):
                         action='store_true', default=False,
                         help="Print interpolated jinja2 source then bail.")
 
+    # Override help: the default does a sys.exit()
+    parser.add_argument('-h', '--help', dest='print_help',
+                        action='store_true', default=False,
+                        help='show this help message')
+
     return parser, parser.parse_args(shlex.split(line))
 
 
@@ -88,9 +94,9 @@ def get_cwd(args):
     if args.temp_dir or os.environ.get('ITIKZ_TEMP_DIR'):
         cwd = os.path.join(tempfile.gettempdir(), 'itikz')
         os.makedirs(cwd, exist_ok=True)
-        return cwd
+        return cwd  # Override as cwd
     else:
-        return None
+        return None  # No override.
 
 
 def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
@@ -127,9 +133,18 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
 
 
 def load_and_interpolate_jinja2(src, ns):
+    # The FileSystemLoader should operate in the current working directory.
+    # By assumption, extended jinja templates aren't temporary files --
+    # the user wrote them by hand. They are part of code you would want in
+    # your repository!
     fs_loader = jinja2.FileSystemLoader(os.getcwd())
     tmpl_env = jinja2.Environment(loader=fs_loader)
+
+    # The final template -- the one that may extend a custom template --
+    # may be in the current directory or in a temporary one. So, it's
+    # passed as a string.
     tmpl = tmpl_env.from_string(src)
+
     return tmpl.render(**ns)
 
 
@@ -140,6 +155,11 @@ class MyMagics(Magics):
     def itikz(self, line, cell=None):
         src = cell
         parser, args = parse_args(line)
+
+        if args.print_help:
+            parser.print_help(file=sys.stderr)
+            return
+
         ipython_ns = self.shell.user_ns
 
         if cell is None:
@@ -188,13 +208,5 @@ def build_template_args(src, args):
                 extras=extras)
 
 
-
 def load_ipython_extension(ipython):
-    """
-    Any module file that define a function named `load_ipython_extension`
-    can be loaded via `%load_ext module.path` or be configured to be
-    autoloaded by IPython at startup time.
-    """
-    # You can register the class itself without instantiating it.  IPython will
-    # call the default constructor on it.
     ipython.register_magics(MyMagics)

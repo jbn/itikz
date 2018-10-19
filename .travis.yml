@@ -8,8 +8,12 @@ python:
 
 install:
   - pip install -r requirements_dev.txt
-  - pip install jupyter jinja2
+  - pip install jupyter jinja2 coveralls
   - pip install .
   - sudo apt-get install -y --no-install-recommends texlive-full pdf2svg
 
-script: "jupyter nbconvert --to html --execute Quickstart.ipynb && ls Quickstart.html"
+script:
+  - "jupyter nbconvert --to html --execute Quickstart.ipynb && ls Quickstart.html"
+  - pytest --cov=itikz
+
+after_success: coveralls
