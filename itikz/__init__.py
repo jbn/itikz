@@ -100,7 +100,8 @@ def get_cwd(args):
 
 
 def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
-    output_path = prefix + md5(src.encode()).hexdigest()
+    src_hash = md5(src.encode()).hexdigest()
+    output_path = prefix + src_hash
     if working_dir is not None:
         output_path = os.path.join(working_dir, output_path)
     svg_path = output_path + ".svg"
@@ -123,8 +124,10 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
             return
 
         if cleanup:
+            glob = "*{}*".format(src_hash)
             keep_files = {svg_path, tex_path}
-            for file_path in fnmatch.filter(os.listdir(), output_path + "*"):
+            for file_name in fnmatch.filter(os.listdir(working_dir), glob):
+                file_path = os.path.join(working_dir or '', file_name)
                 if file_path not in keep_files:
                     os.unlink(file_path)
 
@@ -208,5 +211,5 @@ def build_template_args(src, args):
                 extras=extras)
 
 
-def load_ipython_extension(ipython):
+def load_ipython_extension(ipython):  # pragma: no cover
     ipython.register_magics(MyMagics)

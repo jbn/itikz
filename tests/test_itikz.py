@@ -1,5 +1,7 @@
+import os
 import pytest
 import itikz
+from IPython.display import SVG
 
 
 @pytest.mark.skip
@@ -70,3 +72,27 @@ def test_build_template_args(mocker):
     res = itikz.build_template_args("code", args)
     assert res == dict(src="code", scale=2.0,
                        extras="\\usepackage{a,b}\n\\usetikzlibrary{c,d}")
+
+
+RECTANGLE_TIKZ = r"""
+\documentclass[tikz]{standalone}
+\begin{document}
+\begin{tikzpicture}
+\draw[fill=blue] (0, 0) rectangle (1, 1);
+\end{tikzpicture}
+\end{document}
+""".strip()
+
+def test_fetch_or_compile_svg(tmpdir, monkeypatch):
+    expected_md5 = "15d53b05d3a27e1545c9a3688be5e3b4"
+    res = itikz.fetch_or_compile_svg(RECTANGLE_TIKZ, 'test_', str(tmpdir))
+
+    for ext in 'tex', 'svg':
+        path = tmpdir.join("test_{}.{}".format(expected_md5, ext))
+        assert os.path.exists(str(path))
+
+    for ext in 'log', 'aux', 'pdf':
+        path = tmpdir.join("test_{}.{}".format(expected_md5, ext))
+        assert not os.path.exists(str(path))
+
+    assert isinstance(res, SVG)
