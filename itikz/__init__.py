@@ -13,7 +13,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.0.8'
+__version__ = '0.1.0'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -135,8 +135,6 @@ def cleanup_artifacts(working_dir, src_hash, *retaining):
         file_path = os.path.join(working_dir or '', file_name)
         if file_path not in retaining:
             os.unlink(file_path)
-
-
 
 
 def load_and_interpolate_jinja2(src, ns):

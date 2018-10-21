@@ -31,13 +31,13 @@ History
 * Add Quickstart notebook as a demo
 * Remove print statements introduced during debugging
 
-0.0.6 (2018-10-16)
+0.0.6 (2018-10-17)
 ------------------
 
 * Add ITIKZ_TEMP_DIR environmental variable usage
 * Add --implicit-pic
 
-0.0.7 (2018-10-16)
+0.0.7 (2018-10-17)
 ------------------
 
 * Add --scale arg
@@ -45,8 +45,14 @@ History
 * Add --tex-packages
 * Add --implicit-standalone
 
-0.0.8 (2018-10-16)
+0.0.8 (2018-10-17)
 ------------------
 
 * Add jinja2 templating
 * Add jinja2 interpolated code debug printing
+
+0.1.0 (2018-10-21)
+------------------
+
+* Add unit tests
+* Fix cleanup bug

@@ -202,7 +202,7 @@ def test_implicit_pic(itikz_magic):
     assert isinstance(res, SVG)
 
 
-def test_implicit_pic(itikz_magic):
+def test_implicit_standalone(itikz_magic):
     pic = r"\node[draw] at (0,0) {Hello World};"
     src = "\\begin{tikzpicture}\n" + pic + "\n\\end{tikzpicture}\n"
     cmd = "--implicit-standalone --tex-packages=tikz --temp-dir"

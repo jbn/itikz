@@ -9,19 +9,12 @@ itikz
 .. image:: https://travis-ci.org/jbn/itikz.svg?branch=master
         :target: https://travis-ci.org/jbn/itikz
 
-.. image:: https://coveralls.io/repos/github/jbn/itikz/badge.svg
+.. image:: https://img.shields.io/coveralls/github/jbn/itikz.svg
         :target: https://coveralls.io/github/jbn/itikz
-
-.. image:: https://readthedocs.org/projects/itikz/badge/?version=latest
-        :target: https://itikz.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
-
 
 Cell magic for PGF/TikZ-to-SVG rendering in Jupyter
 
-
 * Free software: MIT license
-* Documentation: https://itikz.readthedocs.io.
 
 Basic Usage
 -----------
@@ -53,4 +46,4 @@ Use it:
 Getting Started Guide
 ---------------------
 
-`Getting Started Notebook <https://nbviewer.jupyter.org/github/jbn/itikz/blob/master/Quickstart.ipynb>`__:
+`Getting Started Notebook <https://nbviewer.jupyter.org/github/jbn/itikz/blob/master/Quickstart.ipynb>`__
