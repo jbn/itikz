@@ -166,3 +166,45 @@ def test_magic_line_usage(itikz_magic):
         assert not os.path.exists(str(path))
 
     assert isinstance(res, SVG)
+
+
+def test_magic_no_simultanous_standalone_and_pic(itikz_magic, capsys):
+    res = itikz_magic.itikz("--implicit-pic --implicit-standalone",
+                            RECTANGLE_TIKZ)
+
+    assert res is None
+    _, err = capsys.readouterr()
+    assert err.startswith("Can't use --implicit")
+
+
+def test_magic_jinja_without_jinja(itikz_magic, capsys, monkeypatch):
+    monkeypatch.setattr(itikz, 'JINJA2_ENABLED', False)
+    res = itikz_magic.itikz("--as-jinja", RECTANGLE_TIKZ)
+
+    assert res is None
+    _, err = capsys.readouterr()
+    assert err.startswith("Please install jinja2")
+
+
+def test_magic_jinja_print_src(itikz_magic, capsys):
+    src = "The answer is: {{n}}"
+    itikz_magic.shell.user_ns['n'] = 42
+    res = itikz_magic.itikz("--as-jinja --print-jinja", src)
+
+    assert res is None
+    out, _ = capsys.readouterr()
+    assert out.startswith("The answer is: 42")
+
+
+def test_implicit_pic(itikz_magic):
+    src = r"\node[draw] at (0,0) {Hello World};"
+    res = itikz_magic.itikz("--implicit-pic --temp-dir", src)
+    assert isinstance(res, SVG)
+
+
+def test_implicit_pic(itikz_magic):
+    pic = r"\node[draw] at (0,0) {Hello World};"
+    src = "\\begin{tikzpicture}\n" + pic + "\n\\end{tikzpicture}\n"
+    cmd = "--implicit-standalone --tex-packages=tikz --temp-dir"
+    res = itikz_magic.itikz(cmd, src)
+    assert isinstance(res, SVG)

@@ -74,11 +74,11 @@ def parse_args(line):
                         default='',
                         help='Comma separated list of tex packages to use')
 
-    parser.add_argument('--as-jinja2', dest='as_jinja2',
+    parser.add_argument('--as-jinja', dest='as_jinja',
                         action='store_true', default=False,
                         help="Interpret the source as a jinja2 template")
 
-    parser.add_argument('--print-jinja2', dest='print_jinja2',
+    parser.add_argument('--print-jinja', dest='print_jinja',
                         action='store_true', default=False,
                         help="Print interpolated jinja2 source then bail.")
 
@@ -180,21 +180,27 @@ class TikZMagics(Magics):
         if args.implicit_pic and args.implicit_standalone:
             print("Can't use --implicit-standalone and --implicit-pic",
                   file=sys.stderr)
-        elif args.implicit_pic:
-            src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
-        elif args.implicit_standalone:
-            tmpl_args = build_template_args(src, args)
-            src = IMPLICIT_STANDALONE.substitute(tmpl_args)
-        elif args.as_jinja2:
+            return None
+
+        # Jinja processing comes BEFORE implicit pic or standalone processing!
+        if args.as_jinja:
+
             if not JINJA2_ENABLED:
                 print("Please install jinja2", file=sys.stderr)
                 print("$ pip install jinja2", file=sys.stderr)
                 return
+
             src = load_and_interpolate_jinja2(src, ipython_ns)
 
-            if args.print_jinja2:
+            if args.print_jinja:
                 print(src)
                 return
+
+        if args.implicit_pic:
+            src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
+        elif args.implicit_standalone:
+            tmpl_args = build_template_args(src, args)
+            src = IMPLICIT_STANDALONE.substitute(tmpl_args)
 
         return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
 
