@@ -35,7 +35,7 @@ $src
 JINJA2_ENABLED = True
 try:
     import jinja2
-except ImportError:
+except ImportError:  # pragma: no cover
     JINJA2_ENABLED = False
 
 
@@ -117,22 +117,26 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
             check_output(["pdflatex", tex_path], cwd=working_dir)
             check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
         except CalledProcessError as e:
-            for del_file in [tex_path, pdf_path, svg_path]:
-                if os.path.exists(del_file):
-                    os.unlink(del_file)
+            cleanup_artifacts(working_dir, src_hash)
             print(e.output.decode(), file=sys.stderr)
             return
 
         if cleanup:
-            glob = "*{}*".format(src_hash)
-            keep_files = {svg_path, tex_path}
-            for file_name in fnmatch.filter(os.listdir(working_dir), glob):
-                file_path = os.path.join(working_dir or '', file_name)
-                if file_path not in keep_files:
-                    os.unlink(file_path)
+            cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
 
     with open(svg_path, "r") as fp:
         return SVG(fp.read())
+
+
+def cleanup_artifacts(working_dir, src_hash, *retaining):
+    glob = "*{}*".format(src_hash)
+
+    for file_name in fnmatch.filter(os.listdir(working_dir), glob):
+        file_path = os.path.join(working_dir or '', file_name)
+        if file_path not in retaining:
+            os.unlink(file_path)
+
+
 
 
 def load_and_interpolate_jinja2(src, ns):
@@ -152,7 +156,7 @@ def load_and_interpolate_jinja2(src, ns):
 
 
 @magics_class
-class MyMagics(Magics):
+class TikZMagics(Magics):
 
     @line_cell_magic
     def itikz(self, line, cell=None):
@@ -212,4 +216,4 @@ def build_template_args(src, args):
 
 
 def load_ipython_extension(ipython):  # pragma: no cover
-    ipython.register_magics(MyMagics)
+    ipython.register_magics(TikZMagics)

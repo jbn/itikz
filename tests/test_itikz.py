@@ -1,12 +1,8 @@
 import os
 import pytest
 import itikz
+import tempfile
 from IPython.display import SVG
-
-
-@pytest.mark.skip
-def test_cell_magic():
-    pass
 
 
 @pytest.mark.skipif(not itikz.JINJA2_ENABLED, reason="jinja2 not installed")
@@ -83,7 +79,11 @@ RECTANGLE_TIKZ = r"""
 \end{document}
 """.strip()
 
-def test_fetch_or_compile_svg(tmpdir, monkeypatch):
+
+BAD_TIKZ = "HELLO WORLD"
+
+
+def test_fetch_or_compile_svg_good_input(tmpdir, monkeypatch):
     expected_md5 = "15d53b05d3a27e1545c9a3688be5e3b4"
     res = itikz.fetch_or_compile_svg(RECTANGLE_TIKZ, 'test_', str(tmpdir))
 
@@ -93,6 +93,76 @@ def test_fetch_or_compile_svg(tmpdir, monkeypatch):
 
     for ext in 'log', 'aux', 'pdf':
         path = tmpdir.join("test_{}.{}".format(expected_md5, ext))
+        assert not os.path.exists(str(path))
+
+    assert isinstance(res, SVG)
+
+
+def test_fetch_or_compile_svg_bad_input(tmpdir, capsys):
+    expected_md5 = "361fadf1c712e812d198c4cab5712a79"
+    res = itikz.fetch_or_compile_svg(BAD_TIKZ, 'test_', str(tmpdir))
+
+    for ext in 'tex', 'svg', 'log', 'aux', 'pdf':
+        path = tmpdir.join("test_{}.{}".format(expected_md5, ext))
+        assert not os.path.exists(str(path))
+
+    assert res is None
+
+    _, err = capsys.readouterr()
+    assert 'error' in err.lower()
+
+
+@pytest.fixture
+def itikz_magic(mocker, monkeypatch):
+    obj = itikz.TikZMagics()
+    shell = mocker.MagicMock()
+    shell.user_ns = {}
+    monkeypatch.setattr(obj, 'shell', shell)
+    return obj
+
+
+def test_magic_print_help(itikz_magic, capsys):
+    assert itikz_magic.itikz("--help") is None
+    _, err = capsys.readouterr()
+    assert err.startswith("usage: %%itikz")
+
+
+def test_magic_print_help_on_no_input(itikz_magic, capsys):
+    assert itikz_magic.itikz('') is None
+    _, err = capsys.readouterr()
+    assert err.startswith("usage: %%itikz")
+
+
+def test_magic_cell_usage(itikz_magic):
+    expected_md5 = "15d53b05d3a27e1545c9a3688be5e3b4"
+    tmp_dir = os.path.join(tempfile.gettempdir(), 'itikz')
+
+    res = itikz_magic.itikz("--temp-dir --file-prefix test_", RECTANGLE_TIKZ)
+
+    for ext in 'tex', 'svg':
+        path = os.path.join(tmp_dir, "test_{}.{}".format(expected_md5, ext))
+        assert os.path.exists(str(path))
+
+    for ext in 'log', 'aux', 'pdf':
+        path = os.path.join(tmp_dir, "test_{}.{}".format(expected_md5, ext))
+        assert not os.path.exists(str(path))
+
+    assert isinstance(res, SVG)
+
+
+def test_magic_line_usage(itikz_magic):
+    expected_md5 = "15d53b05d3a27e1545c9a3688be5e3b4"
+    tmp_dir = os.path.join(tempfile.gettempdir(), 'itikz')
+    itikz_magic.shell.user_ns['env_src'] = RECTANGLE_TIKZ
+
+    res = itikz_magic.itikz("--temp-dir --file-prefix test_ env_src")
+
+    for ext in 'tex', 'svg':
+        path = os.path.join(tmp_dir, "test_{}.{}".format(expected_md5, ext))
+        assert os.path.exists(str(path))
+
+    for ext in 'log', 'aux', 'pdf':
+        path = os.path.join(tmp_dir, "test_{}.{}".format(expected_md5, ext))
         assert not os.path.exists(str(path))
 
     assert isinstance(res, SVG)
