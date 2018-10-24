@@ -2,7 +2,7 @@ import os
 import pytest
 import itikz
 import tempfile
-from IPython.display import SVG
+from IPython.display import SVG, Image
 
 
 @pytest.mark.skipif(not itikz.JINJA2_ENABLED, reason="jinja2 not installed")
@@ -208,3 +208,30 @@ def test_implicit_standalone(itikz_magic):
     cmd = "--implicit-standalone --tex-packages=tikz --temp-dir"
     res = itikz_magic.itikz(cmd, src)
     assert isinstance(res, SVG)
+
+
+def test_rasterize_good_input(itikz_magic):
+    pic = r"\node[draw] at (0,0) {Hello World};"
+    src = "\\begin{tikzpicture}\n" + pic + "\n\\end{tikzpicture}\n"
+    cmd = "--implicit-standalone --tex-packages=tikz --temp-dir --rasterize"
+    res = itikz_magic.itikz(cmd, src)
+    assert isinstance(res, Image)
+
+
+def test_rasterize_bad_input(itikz_magic):
+    cmd = "--temp-dir --rasterize"
+    res = itikz_magic.itikz(cmd, BAD_TIKZ)
+    assert res is None
+
+
+def test_rasterize_no_cairo_svg(itikz_magic, monkeypatch, capsys):
+    monkeypatch.setattr(itikz, 'CAIROSVG_ENABLED', False)
+
+    pic = r"\node[draw] at (0,0) {Hello World};"
+    src = "\\begin{tikzpicture}\n" + pic + "\n\\end{tikzpicture}\n"
+    cmd = "--implicit-standalone --tex-packages=tikz --temp-dir --rasterize"
+    res = itikz_magic.itikz(cmd, BAD_TIKZ)
+
+    assert res is None
+    _, err = capsys.readouterr()
+    assert err.startswith("Please install cairosvg")

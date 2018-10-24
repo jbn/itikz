@@ -8,7 +8,7 @@ python:
 
 install:
   - pip install -r requirements_dev.txt
-  - pip install jupyter jinja2 coveralls
+  - pip install jupyter jinja2 coveralls cairosvg
   - pip install .
   - sudo apt-get install -y --no-install-recommends texlive-full pdf2svg
 

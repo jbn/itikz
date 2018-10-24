@@ -7,13 +7,13 @@ from hashlib import md5
 from shutil import fnmatch
 from string import Template
 from subprocess import check_output, CalledProcessError
-from IPython.display import SVG
+from IPython.display import SVG, Image
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -37,6 +37,13 @@ try:
     import jinja2
 except ImportError:  # pragma: no cover
     JINJA2_ENABLED = False
+
+
+CAIROSVG_ENABLED = True
+try:
+    import cairosvg
+except ImportError:  # pragma: no cover
+    CAIROSVG_ENABLED = False
 
 
 def parse_args(line):
@@ -81,6 +88,10 @@ def parse_args(line):
     parser.add_argument('--print-jinja', dest='print_jinja',
                         action='store_true', default=False,
                         help="Print interpolated jinja2 source then bail.")
+
+    parser.add_argument('--rasterize', dest='rasterize',
+                        action='store_true', default=False,
+                        help="Rasterize the svg with cairosvg")
 
     # Override help: the default does a sys.exit()
     parser.add_argument('-h', '--help', dest='print_help',
@@ -200,7 +211,24 @@ class TikZMagics(Magics):
             tmpl_args = build_template_args(src, args)
             src = IMPLICIT_STANDALONE.substitute(tmpl_args)
 
-        return fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
+        svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
+
+        if svg is None:
+            return None
+
+        if args.rasterize:
+            if not CAIROSVG_ENABLED:
+                print("Please install cairosvg", file=sys.stderr)
+                print("$ pip install cairosvg", file=sys.stderr)
+                return
+
+            png_bytes = cairosvg.svg2png(bytestring=svg.data.encode())
+
+            return Image(data=png_bytes)
+
+        return svg
+
+
 
 
 def build_template_args(src, args):

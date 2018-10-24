@@ -56,3 +56,8 @@ History
 
 * Add unit tests
 * Fix cleanup bug
+
+0.1.1 (2018-10-24)
+------------------
+
+* Add --rasterize option
