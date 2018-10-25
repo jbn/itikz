@@ -110,6 +110,22 @@ def test_fetch_or_compile_svg_bad_input(tmpdir, capsys):
 
     _, err = capsys.readouterr()
     assert 'error' in err.lower()
+    assert len(err.splitlines()) == 10
+
+
+def test_fetch_or_compile_svg_bad_input_full_err(tmpdir, capsys):
+    expected_md5 = "361fadf1c712e812d198c4cab5712a79"
+    res = itikz.fetch_or_compile_svg(BAD_TIKZ, 'test_', str(tmpdir), True)
+
+    for ext in 'tex', 'svg', 'log', 'aux', 'pdf':
+        path = tmpdir.join("test_{}.{}".format(expected_md5, ext))
+        assert not os.path.exists(str(path))
+
+    assert res is None
+
+    _, err = capsys.readouterr()
+    assert 'error' in err.lower()
+    assert len(err.splitlines()) > 10
 
 
 @pytest.fixture

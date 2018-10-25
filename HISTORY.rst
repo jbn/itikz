@@ -61,3 +61,9 @@ History
 ------------------
 
 * Add --rasterize option
+
+0.1.2 (2018-10-25)
+------------------
+
+* Change default to only show the training 10 lines of an error
+* Add --full-error option for full emitted error

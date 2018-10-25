@@ -13,7 +13,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -93,6 +93,10 @@ def parse_args(line):
                         action='store_true', default=False,
                         help="Rasterize the svg with cairosvg")
 
+    parser.add_argument('--full-error', dest='full_err',
+                        action='store_true', default=False,
+                        help="Emit the full error message")
+
     # Override help: the default does a sys.exit()
     parser.add_argument('-h', '--help', dest='print_help',
                         action='store_true', default=False,
@@ -110,7 +114,7 @@ def get_cwd(args):
         return None  # No override.
 
 
-def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
+def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False):
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
     if working_dir is not None:
@@ -129,11 +133,15 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, cleanup=True):
             check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
         except CalledProcessError as e:
             cleanup_artifacts(working_dir, src_hash)
-            print(e.output.decode(), file=sys.stderr)
+            err_msg = e.output.decode()
+
+            if not full_err:  # tail -n 10
+                err_msg = "\n".join(err_msg.splitlines()[-10:])
+
+            print(err_msg, file=sys.stderr)
             return
 
-        if cleanup:
-            cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
+        cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
 
     with open(svg_path, "r") as fp:
         return SVG(fp.read())
@@ -211,7 +219,8 @@ class TikZMagics(Magics):
             tmpl_args = build_template_args(src, args)
             src = IMPLICIT_STANDALONE.substitute(tmpl_args)
 
-        svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args))
+        svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
+                                   args.full_err)
 
         if svg is None:
             return None
