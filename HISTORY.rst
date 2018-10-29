@@ -67,3 +67,8 @@ History
 
 * Change default to only show the training 10 lines of an error
 * Add --full-error option for full emitted error
+
+0.1.3 (2018-10-29)
+------------------
+
+* Change default to only show the training 20 lines of an error

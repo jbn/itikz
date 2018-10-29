@@ -13,7 +13,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -135,8 +135,8 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False):
             cleanup_artifacts(working_dir, src_hash)
             err_msg = e.output.decode()
 
-            if not full_err:  # tail -n 10
-                err_msg = "\n".join(err_msg.splitlines()[-10:])
+            if not full_err:  # tail -n 20
+                err_msg = "\n".join(err_msg.splitlines()[-20:])
 
             print(err_msg, file=sys.stderr)
             return

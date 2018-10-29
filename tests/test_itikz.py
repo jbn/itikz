@@ -110,7 +110,7 @@ def test_fetch_or_compile_svg_bad_input(tmpdir, capsys):
 
     _, err = capsys.readouterr()
     assert 'error' in err.lower()
-    assert len(err.splitlines()) == 10
+    assert len(err.splitlines()) == 20
 
 
 def test_fetch_or_compile_svg_bad_input_full_err(tmpdir, capsys):
@@ -125,7 +125,7 @@ def test_fetch_or_compile_svg_bad_input_full_err(tmpdir, capsys):
 
     _, err = capsys.readouterr()
     assert 'error' in err.lower()
-    assert len(err.splitlines()) > 10
+    assert len(err.splitlines()) > 20
 
 
 @pytest.fixture
