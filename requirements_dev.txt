@@ -12,3 +12,5 @@ pytest
 pytest-runner
 pytest-mock
 pytest-cov
+IPython
+cairosvg

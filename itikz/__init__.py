@@ -81,6 +81,10 @@ def parse_args(line):
                         default='',
                         help='Comma separated list of tex packages to use')
 
+    parser.add_argument('--tex-program', dest='tex_program',
+                        default='pdflatex',
+                        help='Name of alternate LaTeX program (e.g., lualatex)')
+
     parser.add_argument('--as-jinja', dest='as_jinja',
                         action='store_true', default=False,
                         help="Interpret the source as a jinja2 template")
@@ -114,7 +118,7 @@ def get_cwd(args):
         return None  # No override.
 
 
-def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False):
+def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_program='pdflatex'):
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
     if working_dir is not None:
@@ -129,7 +133,7 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False):
             fp.write(src)
 
         try:
-            check_output(["pdflatex", tex_path], cwd=working_dir)
+            check_output([tex_program, tex_path], cwd=working_dir)
             check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
         except CalledProcessError as e:
             cleanup_artifacts(working_dir, src_hash)
@@ -220,7 +224,7 @@ class TikZMagics(Magics):
             src = IMPLICIT_STANDALONE.substitute(tmpl_args)
 
         svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
-                                   args.full_err)
+                                   args.full_err, args.tex_program)
 
         if svg is None:
             return None
@@ -236,8 +240,6 @@ class TikZMagics(Magics):
             return Image(data=png_bytes)
 
         return svg
-
-
 
 
 def build_template_args(src, args):

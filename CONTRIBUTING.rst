@@ -64,10 +64,20 @@ Ready to contribute? Here's how to set up `itikz` for local development.
 
     $ git clone git@github.com:your_name_here/itikz.git
 
-3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
+3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed,
+   this is how you set up your fork for local development::
 
     $ mkvirtualenv itikz
     $ cd itikz/
+    $ pip install -r requirements_dev.txt
+    $ python setup.py develop
+
+   If you are not using virtualenvwrapper, use Python 3's native virtual environment::
+
+    $ cd itikz
+    $ python3 -m venv venv
+    $ source ./venv/bin/activate
+    $ pip install -r requirements_dev.txt
     $ python setup.py develop
 
 4. Create a branch for local development::
@@ -77,13 +87,21 @@ Ready to contribute? Here's how to set up `itikz` for local development.
    Now you can make your changes locally.
 
 5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+   tests, including testing other Python versions with tox.
+
+   Run flake8 against itikz itself and the tests.
 
     $ flake8 itikz tests
-    $ python setup.py test or py.test
+
+   Run Python tests with either of these commands::
+    $ python setup.py test
+    $ py.test
+
+   Run tox::
     $ tox
 
-   To get flake8 and tox, just pip install them into your virtualenv.
+   To get flake8 and tox, just pip install them into your virtualenv
+   (this will already be done if you installed the requirements_dev.txt packages).
 
 6. Commit your changes and push your branch to GitHub::
 
