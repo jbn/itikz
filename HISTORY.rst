@@ -72,3 +72,9 @@ History
 ------------------
 
 * Change default to only show the training 20 lines of an error
+
+0.1.4 (2019-09-27)
+------------------
+
+* Add option to set LaTeX program (e.g. lualatex) via PR from
+  Tom Nurkkala (thanks, Tom!)
