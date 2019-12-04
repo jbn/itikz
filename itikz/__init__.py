@@ -128,12 +128,13 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_p
     if not os.path.exists(svg_path):
         tex_path = output_path + ".tex"
         pdf_path = output_path + ".pdf"
+        tex_filename = os.path.basename(tex_path)
 
         with open(tex_path, "w") as fp:
             fp.write(src)
 
         try:
-            check_output([tex_program, tex_path], cwd=working_dir)
+            check_output([tex_program, tex_filename], cwd=working_dir)
             check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
         except CalledProcessError as e:
             cleanup_artifacts(working_dir, src_hash)
