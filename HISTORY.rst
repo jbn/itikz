@@ -78,3 +78,9 @@ History
 
 * Add option to set LaTeX program (e.g. lualatex) via PR from
   Tom Nurkkala (thanks, Tom!)
+
+0.1.5 (2020-01-04)
+------------------
+
+* Fix bug with tilde expansion on windows via PR rom asteppke
+  on github (thanks, asteppke!)
