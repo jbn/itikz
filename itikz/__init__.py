@@ -7,6 +7,7 @@ from hashlib import md5
 from shutil import fnmatch
 from string import Template
 from subprocess import check_output, CalledProcessError
+from subprocess import run as run_subprocess
 from IPython.display import SVG, Image
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 
@@ -26,6 +27,13 @@ $src
 
 
 IMPLICIT_STANDALONE = Template(r"""\documentclass{standalone}
+$extras
+\begin{document}
+$src
+\end{document}""")
+
+IMPLICIT_ARTICLE = Template(r"""\documentclass{article}
+\pagenumbering{gobble}
 $extras
 \begin{document}
 $src
@@ -61,17 +69,17 @@ def parse_args(line):
     parser.add_argument('--file-prefix', dest='file_prefix',
                         default='', help='emit artifacts with a path prefix')
 
-    parser.add_argument('--implicit-pic', dest='implicit_pic',
-                        action='store_true', default=False,
-                        help='wrap source in implicit tikzpicture document')
+    parser.add_argument('--template', dest='implicit_template',
+                        default=None,
+                        help='wrap source in implicit document: pic, standalone or article')
 
-    parser.add_argument('--implicit-standalone', dest='implicit_standalone',
-                        action='store_true', default=False,
-                        help='wrap source in implicit document')
+    parser.add_argument('--nexec', dest='nexec',
+                        default=1,
+                        help='set number of engine executions in --nexec')
 
     parser.add_argument('--scale', dest='scale',
                         default='1',
-                        help='Set tikzpicture scale in --implicit-pic tmpl')
+                        help='Set tikzpicture scale in --template pic')
 
     parser.add_argument('--tikz-libraries', dest='tikz_libraries',
                         default='',
@@ -85,6 +93,17 @@ def parse_args(line):
                         default='pdflatex',
                         help='Name of alternate LaTeX program (e.g., lualatex)')
 
+    parser.add_argument('--use-xetex', dest='use_xetex', action='store_true',
+                        default=False,
+                        help='use xetex rather than pdflatex')
+
+    parser.add_argument('--use-dvi', dest='use_dvi', action='store_true',
+                        default=False,
+                        help='use dvi or xdv for conversion to svg')
+    parser.add_argument('--crop', dest='crop', action='store_true',
+                        default=False,
+                        help='use inkscape to crop the svg')
+
     parser.add_argument('--as-jinja', dest='as_jinja',
                         action='store_true', default=False,
                         help="Interpret the source as a jinja2 template")
@@ -97,6 +116,9 @@ def parse_args(line):
                         action='store_true', default=False,
                         help="Rasterize the svg with cairosvg")
 
+    parser.add_argument('--debug', dest='debug',
+                        action='store_true', default=False,
+                        help="turn on debug mode")
     parser.add_argument('--full-error', dest='full_err',
                         action='store_true', default=False,
                         help="Emit the full error message")
@@ -117,25 +139,102 @@ def get_cwd(args):
     else:
         return None  # No override.
 
+def build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    '''
+build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    '''
+    if isinstance( tex_program, (list,)) is False:
+        tex_program = [tex_program]
 
-def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_program='pdflatex'):
+    if tex_program[0]  == "pdflatex":
+        if use_xetex is True:
+            if use_dvi is True:
+                if nexec > 1:
+                    #print("EGB  case 1")
+                    _tex_program = ["xelatex", "--no-pdf", "-etex" ]
+                    _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
+                else:
+                    #print("EGB  case 2")
+                    _tex_program = ["latexmk", "-xelatex", "-etex" ]
+                    _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
+            else:
+                if nexec > 1:
+                    #print("EGB  case 3")
+                    _tex_program = ["xelatex", "-etex" ]
+                    _svg_converter = [["pdf2svg"], ".pdf"]
+                else:
+                    #print("EGB  case 4")
+                    _tex_program = ["latexmk", "-xelatex", "-etex" ]
+                    _svg_converter = [["pdf2svg"], ".pdf"]
+        else:
+            if use_dvi is True:
+                #print("EGB  case 5")
+                _tex_program = ["latexmk", "-etex", "-dvi" ]
+                _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".dvi"]
+            else:
+                #print("EGB  case 6")
+                _tex_program = ["latexmk", "-etex", "-pdf" ]
+                _svg_converter = [["pdf2svg"], ".pdf"]
+    else:
+       #print("EGB  case 7")
+       _tex_program = tex_program
+       _svg_converter = svg_converter
+    if crop:
+        _svg_crop = (["inkscape", "-D", "--without-gui", "--file"], ["--export-plain-svg"])
+    else:
+        _svg_crop = None
+
+    return _tex_program, _svg_converter,_svg_crop
+
+def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
+    '''
+fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
+    '''
+    svg = svg_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec)
+    if svg is not None:
+        return SVG(svg)
+    return
+
+def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
+    #print("EGB *** prefix: ",prefix);print("EGB *** fetch tex prog:   ",tex_program); print("EGB *** fetch converter:  ", svg_converter)
+
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
     if working_dir is not None:
         output_path = os.path.join(working_dir, output_path)
     svg_path = output_path + ".svg"
 
-    if not os.path.exists(svg_path):
+    if debug or not os.path.exists(svg_path):
         tex_path = output_path + ".tex"
-        pdf_path = output_path + ".pdf"
+        pdf_path = output_path + svg_converter[1]
         tex_filename = os.path.basename(tex_path)
 
+        if debug:
+            print(">>>> tex file path: ", tex_path)
+            print(">>>> tex code:\n", src)
         with open(tex_path, "w") as fp:
+            #print( "EGB ***writing to ", tex_path, "\nsrc:   ", src)
             fp.write(src)
 
         try:
-            check_output([tex_program, tex_filename], cwd=working_dir)
-            check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
+            tex_program.append( tex_path )
+            if debug:
+                print(">>>> tex_PROGRAM: ", ' '.join(tex_program), working_dir)
+            for _ in range(nexec-1):
+                run_subprocess(tex_program, cwd=working_dir)
+            check_output(tex_program, cwd=working_dir)
+
+            svg_program = svg_converter[0] + [pdf_path, svg_path]
+            if debug:
+                print(">>>> svg_PROGRAM: ", ' '.join(svg_program))
+            check_output(svg_program, cwd=working_dir)
+
+            if svg_crop is not None:
+                crop_program = svg_crop[0] + [svg_path] + svg_crop[1] + [svg_path]
+                if debug:
+                    print(">>>> svg_crop_PROGRAM: ", ' '.join(crop_program))
+                check_output( crop_program, cwd=working_dir)
+
         except CalledProcessError as e:
             cleanup_artifacts(working_dir, src_hash)
             err_msg = e.output.decode()
@@ -149,7 +248,7 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_p
         cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
 
     with open(svg_path, "r") as fp:
-        return SVG(fp.read())
+        return fp.read()
 
 
 def cleanup_artifacts(working_dir, src_hash, *retaining):
@@ -199,9 +298,6 @@ class TikZMagics(Magics):
 
             src = ipython_ns[args.k]
 
-        if args.implicit_pic and args.implicit_standalone:
-            print("Can't use --implicit-standalone and --implicit-pic",
-                  file=sys.stderr)
             return None
 
         # Jinja processing comes BEFORE implicit pic or standalone processing!
@@ -218,14 +314,29 @@ class TikZMagics(Magics):
                 print(src)
                 return
 
-        if args.implicit_pic:
-            src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
-        elif args.implicit_standalone:
-            tmpl_args = build_template_args(src, args)
-            src = IMPLICIT_STANDALONE.substitute(tmpl_args)
+        if args.implicit_template is not None:
+            if args.implicit_template == "pic":
+                src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
+            elif args.implicit_template == "standalone":
+                tmpl_args = build_template_args(src, args)
+                src = IMPLICIT_STANDALONE.substitute(tmpl_args)
+            elif args.implicit_template == "article":
+                tmpl_args = build_template_args(src, args)
+                src = IMPLICIT_ARTICLE.substitute(tmpl_args)
+            else:
+                print( "no implicit template '", args.implicit_template, "'" )
+                print( "   known templates are one of: 'pic, standalone, article', else use jinja" )
+                return
 
+        if args.debug:
+            print(">>>> program args: ", args.tex_program, args.use_dvi, args.use_xetex)
+
+        nexec = int(args.nexec)
+        tex_program,svg_converter,svg_crop =  build_commands( args.tex_program, [["pdf2svg"],".pdf"], args.use_xetex, args.use_dvi, args.crop, nexec)
+
+        #print("EGB **** working dir<<<<", get_cwd(args), ">>>>")
         svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
-                                   args.full_err, args.tex_program)
+                                   args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec)
 
         if svg is None:
             return None
