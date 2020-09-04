@@ -35,7 +35,7 @@ Use it:
 
 .. code:: tex
 
-    %%itikz --file-prefix implicit-demo- --implicit-pic
+    %%itikz --file-prefix implicit-demo- --template pic
     \draw[help lines] grid (5, 5);
     \draw[fill=magenta!10] (1, 1) rectangle (2, 2);
     \draw[fill=magenta!10] (2, 1) rectangle (3, 2);
@@ -47,3 +47,12 @@ Getting Started Guide
 ---------------------
 
 `Getting Started Notebook <https://nbviewer.jupyter.org/github/jbn/itikz/blob/master/Quickstart.ipynb>`__
+
+API
+---
+
+Python:
+
+..code:: build_commands, svg_from_tex, fetch_or_compile_svg
+
+Can be invoked from Julia using PyCall, tested in jupyter-lab and Pluto.jl
