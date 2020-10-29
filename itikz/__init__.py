@@ -1,10 +1,12 @@
 import argparse
+import re
 import os
 import shlex
 import sys
 import tempfile
 from hashlib import md5
 from shutil import fnmatch
+from shutil import copy as shutil_copy
 from string import Template
 from subprocess import check_output, CalledProcessError
 from subprocess import run as run_subprocess
@@ -14,7 +16,7 @@ from IPython.core.magic import Magics, magics_class, line_cell_magic
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.5'
+__version__ = '0.1.5ea'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -61,6 +63,10 @@ def parse_args(line):
 
     parser.add_argument('k', type=str, nargs='?',
                         help='the variable in IPython with the string source')
+
+    parser.add_argument('--keep-file', dest='keep_file',
+                        default=None,
+                        help='directory to keep tex and svg file')
 
     parser.add_argument('--temp-dir', dest='temp_dir', action='store_true',
                         default=False,
@@ -139,6 +145,10 @@ def get_cwd(args):
     else:
         return None  # No override.
 
+def build_commands_dict( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    tex_program,svg_converter,svg_crop = build_commands( tex_program, svg_converter, use_xetex, use_dvi, crop, nexec)
+    return  { "tex_program":tex_program,"svg_converter":svg_converter,"svg_crop":svg_crop  }
+
 def build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
     '''
 build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
@@ -150,62 +160,66 @@ build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], us
         if use_xetex is True:
             if use_dvi is True:
                 if nexec > 1:
-                    #print("EGB  case 1")
+                    #print("EA42  case 1")
                     _tex_program = ["xelatex", "--no-pdf", "-etex" ]
                     _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
                 else:
-                    #print("EGB  case 2")
-                    _tex_program = ["latexmk", "-xelatex", "-etex" ]
+                    #print("EA42  case 2")
+                    _tex_program = ["latexmk", "--quiet", "--silent", "-xelatex", "-etex" ]
                     _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
             else:
                 if nexec > 1:
-                    #print("EGB  case 3")
+                    #print("EA42  case 3")
                     _tex_program = ["xelatex", "-etex" ]
                     _svg_converter = [["pdf2svg"], ".pdf"]
                 else:
-                    #print("EGB  case 4")
-                    _tex_program = ["latexmk", "-xelatex", "-etex" ]
+                    #print("EA42  case 4")
+                    _tex_program = ["latexmk", "--quiet", "--silent", "-xelatex", "-etex" ]
                     _svg_converter = [["pdf2svg"], ".pdf"]
         else:
             if use_dvi is True:
-                #print("EGB  case 5")
-                _tex_program = ["latexmk", "-etex", "-dvi" ]
+                #print("EA42  case 5")
+                _tex_program = ["latexmk", "--quiet", "--silent", "-etex", "-dvi" ]
                 _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".dvi"]
             else:
-                #print("EGB  case 6")
-                _tex_program = ["latexmk", "-etex", "-pdf" ]
+                #print("EA42  case 6")
+                _tex_program = ["latexmk", "--quiet", "--silent", "-etex", "-pdf" ]
                 _svg_converter = [["pdf2svg"], ".pdf"]
     else:
-       #print("EGB  case 7")
+       #print("EA42  case 7")
        _tex_program = tex_program
        _svg_converter = svg_converter
     if crop:
-        _svg_crop = (["inkscape", "-D", "--without-gui", "--file"], ["--export-plain-svg"])
+        _svg_crop = (["inkscape", "--export-plain-svg", "-D", "-o"])
     else:
         _svg_crop = None
 
     return _tex_program, _svg_converter,_svg_crop
 
-def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
+def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
-fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
+fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
-    svg = svg_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec)
+    svg = svg_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
     if svg is not None:
         return SVG(svg)
     return
 
-def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1):
-    #print("EGB *** prefix: ",prefix);print("EGB *** fetch tex prog:   ",tex_program); print("EGB *** fetch converter:  ", svg_converter)
+def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+    #print("EA42 *** prefix: ",prefix);print("EA42 *** fetch tex prog:   ",tex_program); print("EA42 *** fetch converter:  ", svg_converter)
 
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
     if working_dir is not None:
         output_path = os.path.join(working_dir, output_path)
     svg_path = output_path + ".svg"
+    tex_path = output_path + ".tex"
 
     if debug or not os.path.exists(svg_path):
-        tex_path = output_path + ".tex"
+        #tex_path = output_path + ".tex"
         pdf_path = output_path + svg_converter[1]
         tex_filename = os.path.basename(tex_path)
 
@@ -213,7 +227,7 @@ def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, 
             print(">>>> tex file path: ", tex_path)
             print(">>>> tex code:\n", src)
         with open(tex_path, "w") as fp:
-            #print( "EGB ***writing to ", tex_path, "\nsrc:   ", src)
+            #print( "EA42 ***writing to ", tex_path, "\nsrc:   ", src)
             fp.write(src)
 
         try:
@@ -230,10 +244,23 @@ def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, 
             check_output(svg_program, cwd=working_dir)
 
             if svg_crop is not None:
-                crop_program = svg_crop[0] + [svg_path] + svg_crop[1] + [svg_path]
+                crop_program = svg_crop + [svg_path, svg_path]
                 if debug:
                     print(">>>> svg_crop_PROGRAM: ", ' '.join(crop_program))
                 check_output( crop_program, cwd=working_dir)
+
+            # Could also convert SVG to PNG here
+            # inkscape -z -e test.png -w 1024 -h 1024 test.svg
+
+            if keep_file is not None:
+                try:
+                    if debug:
+                        print(">>>> Save Files: ", ' '.join(["cp", tex_path, keep_file+'.tex']))
+                        print("                 ", ' '.join(["cp", svg_path, keep_file+'.svg']))
+                    shutil_copy( tex_path, keep_file+'.tex' )
+                    shutil_copy( svg_path, keep_file+'.svg' )
+                except:
+                    print( "Could not copy files")
 
         except CalledProcessError as e:
             cleanup_artifacts(working_dir, src_hash)
@@ -247,9 +274,17 @@ def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, 
 
         cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
 
+    return tex_path,svg_path
+
+def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+
+    tex_path,svg_path = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+
     with open(svg_path, "r") as fp:
         return fp.read()
-
 
 def cleanup_artifacts(working_dir, src_hash, *retaining):
     glob = "*{}*".format(src_hash)
@@ -334,9 +369,9 @@ class TikZMagics(Magics):
         nexec = int(args.nexec)
         tex_program,svg_converter,svg_crop =  build_commands( args.tex_program, [["pdf2svg"],".pdf"], args.use_xetex, args.use_dvi, args.crop, nexec)
 
-        #print("EGB **** working dir<<<<", get_cwd(args), ">>>>")
+        #print("EA42 **** working dir<<<<", get_cwd(args), ">>>>")
         svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
-                                   args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec)
+                                   args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec, args.keep_file)
 
         if svg is None:
             return None
@@ -357,8 +392,14 @@ class TikZMagics(Magics):
 def build_template_args(src, args):
     extras = []
 
+    pattern = re.compile( r'(\[[^]]*])(.*)' )
     if args.tex_packages:
-        extras.append(r"\usepackage{" + args.tex_packages + "}")
+        for package in args.tex_packages.split(','):
+            match = pattern.match( package )
+            if match:
+                extras.append( r"\usepackage" + match.group(1) + "{" + match.group(2)+ "}" )
+            else:
+                extras.append(r"\usepackage{" + package + "}")
 
     if args.tikz_libraries:
         extras.append(r"\usetikzlibrary{" + args.tikz_libraries + "}")

@@ -185,6 +185,53 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
     return mat_rep, submatrix_locs, pivot_locs, txt_with_locs,mat_format
 
 # -----------------------------------------------------------------
+def convert_layer_defs( layer_defs ):
+    n_layers = len(layer_defs)
+    A = np.array( layer_defs[0][1] )
+    return [[None, A]] + [np.hstack(layer) for layer in layer_defs[1:]]
+
+# -----------------------------------------------------------------
+def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+    n_layers = len(layer_defs)
+    A = np.array( layer_defs[0][1] )
+
+    Ma,Na    = A.shape                  # matrix sizes
+    Me,Ne    = Ma,Ma                    #
+
+    sep            = '% --------------------------------------------\n'
+    mat_rep        = sep + tex_from_mat( A, front=Me, back=1, formater=formater)
+
+    submatrix_locs = submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
+
+    for layer in layer_defs[1:]:
+        M = np.array(layer)
+        mat_rep  += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
+                 + tex_from_mat( M, back=1, formater=formater)
+        submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+
+    if pivots is not None:
+        pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
+    else:
+        pivot_locs = []
+
+    if txt is not None:
+        txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
+    else:
+        txt_with_locs = []
+
+    if Nrhs > 0:
+        Na1 = Na - Nrhs
+        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na1}rI*{Nrhs}r@{{\qquad\;\;}}r}}'
+    else:
+        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}r@{{\qquad\;\;}}r}}'
+
+    return mat_rep, submatrix_locs, pivot_locs, txt_with_locs,mat_format
+# -----------------------------------------------------------------
+def new_ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+    defs = convert_layer_defs( layer_defs )
+    return ge_layout_from_stacked( layer_defs, Nrhs=Nrhs, pivots=pivots, txt=txt, decorate=decorate, formater=formater )
+
+# -----------------------------------------------------------------
 def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
     n_layers = len(layer_defs)
     Ma,Na    = layer_defs[0][1].shape   # matrix sizes
