@@ -251,4 +251,3 @@ def test_rasterize_no_cairo_svg(itikz_magic, monkeypatch, capsys):
     assert res is None
     _, err = capsys.readouterr()
     assert err.startswith("Please install cairosvg")
-
