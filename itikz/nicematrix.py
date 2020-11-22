@@ -1,4 +1,5 @@
 import numpy as np
+import sympy as sym
 
 extension = r'''
 \ExplSyntaxOn
@@ -107,6 +108,9 @@ def tex_from_mat( A, front=0, back=0, formater=repr):
     return t
 
 # -----------------------------------------------------------------
+def path_format(i,j):
+    return "(row-{i}-|col-{j})".format(i=i,j=j),"(row-{i}-|col-{j})".format(i=i+1,j=j)
+# -----------------------------------------------------------------
 def loc_format(x,parens=('(', ')') ):
     '''loc_format(x,parens=('(', ')') )
     location format of a node (i-j) or {i-j}
@@ -144,12 +148,28 @@ def one_pivot_locations( loc, n_layers=1, M=0, row_offset=0, col_offset=0, c=("b
     return p
 
 # -----------------------------------------------------------------
+def path_locations( locs, n_layers=1, M=0, N=0, row_offset=0, col_offset=0, rep=path_format ):
+    '''construct all actual pivot locations in a matrix stack'''
+    p = []
+    l = len(locs)-1
+    for i,loc in enumerate(locs):
+        if loc is not None:
+            i,j = loc
+            i   = l*M+i + row_offset
+            j   = j + col_offset
+
+            p_add = rep(i,j)
+            p.extend( p_add )
+
+    p.append( rep(n_layers*M+1, N+col_offset)[0] )
+    return p
+# -----------------------------------------------------------------
 def pivot_locations( locs, n_layers=1, M=0, row_offset=0, col_offset=0, c=("blue", "red"), rep=lambda x,y:loc_format((x,y)) ):
     '''construct all actual pivot locations in a matrix stack'''
     p = []
     for i,loc in enumerate(locs):
         if loc is not None:
-            p =p + ( one_pivot_locations((loc[0]+i*M,loc[1]), n_layers-i, M, row_offset, col_offset, c, rep))
+            p = p + ( one_pivot_locations((loc[0]+i*M,loc[1]), n_layers-i, M, row_offset, col_offset, c, rep))
     return p
 # -----------------------------------------------------------------
 def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
@@ -166,10 +186,15 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
                  + tex_from_mat( np.hstack(layer), back=1, formater=lambda x: f'{x:.0f}')
         submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
 
-    if pivots is not None:
+    if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
     else:
         pivot_locs = []
+
+    if decorate:
+        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
+    else:
+        path_corners = []
 
     if txt is not None:
         txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
@@ -182,7 +207,7 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
     else:
         mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}rr@{{\qquad\;\;}}r}}'
 
-    return mat_rep, submatrix_locs, pivot_locs, txt_with_locs,mat_format
+    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
 
 # -----------------------------------------------------------------
 def convert_layer_defs( layer_defs ):
@@ -209,10 +234,15 @@ def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=
                  + tex_from_mat( M, back=1, formater=formater)
         submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
 
-    if pivots is not None:
+    if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
     else:
         pivot_locs = []
+
+    if decorate:
+        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
+    else:
+        path_corners = []
 
     if txt is not None:
         txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
@@ -225,11 +255,13 @@ def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=
     else:
         mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}r@{{\qquad\;\;}}r}}'
 
-    return mat_rep, submatrix_locs, pivot_locs, txt_with_locs,mat_format
+    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
 # -----------------------------------------------------------------
+# Needs debugging
 def new_ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+    '''generate a ge_layout with a certain number of rhs'''
     defs = convert_layer_defs( layer_defs )
-    return ge_layout_from_stacked( layer_defs, Nrhs=Nrhs, pivots=pivots, txt=txt, decorate=decorate, formater=formater )
+    return ge_layout_from_stacked( defs, Nrhs=Nrhs, pivots=pivots, txt=txt, decorate=decorate, formater=formater )
 
 # -----------------------------------------------------------------
 def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
@@ -246,10 +278,15 @@ def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, format
                  + tex_from_mat( np.hstack(layer), back=1, formater=formater)
         submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
 
-    if pivots is not None:
+    if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
     else:
         pivot_locs = []
+
+    if decorate:
+        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
+    else:
+        path_corners = []
 
     if txt is not None:
         txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
@@ -262,7 +299,7 @@ def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, format
     else:
         mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}r@{{\qquad\;\;}}r}}'
 
-    return mat_rep, submatrix_locs, pivot_locs, txt_with_locs,mat_format
+    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
 
 # =================================================================
 GE_TEMPLATE = r'''
@@ -286,7 +323,7 @@ GE_TEMPLATE = r'''
 
 \bigskip
 
-$\begin{NiceArray}[create-medium-nodes]{{mat_format}}
+$\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 {{mat_rep}}
 \CodeAfter
 % ----------------------------------------- submatrix delimiters
@@ -323,8 +360,86 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}
 \end{document}
 '''
 # -----------------------------------------------------------------
+def qr_layout(A_,W_,formater=sym.latex):
+    A=sym.Matrix(A_);W=sym.Matrix(W_)
+    WtW  = W.T @ W
+    WtA  = W.T @ A
+    S    = WtW**(-1)
+    for i in range(S.shape[0]):
+        S[i,i]=sym.sqrt(S[i,i])
+
+    Qt = S*W.T
+    R  = S*WtA
+
+    def mk_nones( l ):
+        return '&'.join( np.repeat(" ",l+1))+"  "
+    extra = " & "
+
+    cS = 1; cWt = cS+S.shape[1]; cA=cWt+A.shape[0]; cW=cA+A.shape[1]; cEnd=cW+W.shape[1]
+    r1 = 1; r2  = r1+A.shape[0]; r3= r2+W.shape[1]; rEnd=r3+W.shape[1]
+
+    mat_fmt = f'{{*{S.shape[1]}r@{{\qquad\ }}*{A.shape[0]}r@{{\qquad\ }}*{A.shape[1]}rI*{W.shape[1]}r@{{\qquad\;\;}}r}}'
+
+    #sep = "% -----------------------------------------------------------------------------\n"
+    #display(sym.BlockMatrix([A,W]))
+    def mk_l1():
+        l1_nones = mk_nones(S.shape[1]+W.shape[0])
+        s = []
+        for i in range(A.shape[0]):
+            s.append( l1_nones + " & ".join( map(formater, A[i,:]) ) + " &   "
+                               + " & ".join( map(formater, W[i,:]) ) + extra )
+        startA = S.shape[1]+A.shape[0]+1; endA=A.shape[0]
+        submatrix_locs = [f'{{{r1}-{cA}}}{{{r2-1}-{cEnd-1}}}']
+        return s, submatrix_locs
+
+    #display(sym.BlockMatrix([W.T,WtA,WtW]))
+    def mk_l2():
+        l2_nones = mk_nones(S.shape[1])
+        s = []
+        for i in range(W.shape[1]):
+            s.append( l2_nones + " & ".join( map(formater, W[:,i] )  )  + " &   "
+                               + " & ".join( map(formater, WtA[i,:]) )  + " &   "
+                               + " & ".join( map(formater, WtW[i,:]) ) + extra
+            )
+        submatrix_locs = [f'{{{r2}-{cWt}}}{{{r3-1}-{cA-1}}}',
+                          f'{{{r2}-{cA}}}{{{r3-1}-{cEnd-1}}}'
+                         ]
+        return s, submatrix_locs
+
+    #display(sym.BlockMatrix([S,Qt,R]))
+    def mk_l3():
+        l3_nones = mk_nones(W.shape[1])
+        s = []
+        for i in range(S.shape[0]):
+            s.append( " & ".join( map(formater, S[i,:] )  )  + " &   "
+                    + " & ".join( map(formater, Qt[i,:]) )  + " &   "
+                    + " & ".join( map(formater, R[i,:]) )
+                    + l3_nones + extra
+            )
+        submatrix_locs = [f'{{{r3}-{cS}}}{{{rEnd-1}-{cWt-1}}}',
+                          f'{{{r3}-{cWt}}}{{{rEnd-1}-{cA-1}}}',
+                          f'{{{r3}-{cA}}}{{{rEnd-1}-{cEnd-1}}}'
+                         ]
+        return s,submatrix_locs
+
+    layer_1, submatrix_locs_1 = mk_l1()
+    layer_2, submatrix_locs_2 = mk_l2()
+    layer_3, submatrix_locs_3 = mk_l3()
+
+    layers = [layer_1, layer_2, layer_3]
+
+    s = []
+    for l in layers:
+        s.append( " \\\\ \n".join(l))
+
+    return " \\\\  \\noalign{\\vskip2mm} \n".join(s),\
+           mat_fmt,\
+           submatrix_locs_1+submatrix_locs_2+submatrix_locs_3
+
+
+# =================================================================
 #loc_format( (1,2), parens=('{','}') )
-#pivot_locations([(1,3),(2,4)], n_layers=4, M=4, row_offset=10, col_offset=0) 
+#pivot_locations([(1,3),(2,4)], n_layers=4, M=4, row_offset=10, col_offset=0)
 #
 #submatrix_locations( 2, (3,5), row_offset=1, col_offset=1+3, start_at_layer=0)
 ###########################################################
@@ -333,7 +448,7 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}
 #E1 = np.array([[1,0,0],[-3,1,0],[-5, 0,1]]); A1 = E1 @ A;   pivots.append((2,2)); n_layers=2
 #E2 = np.array([[1,0,0],[ 0,1,0],[ 0,-2,1]]); A2 = E2 @ A1;  pivots.append((3,3)); n_layers=3
 #
-#mat_rep, submatrix_locs, pivot_locs = nM.ge_int_layout( [[None, A], [E1, A1], [E2,A2]], pivots)
+#mat_rep, submatrix_locs, pivot_locs, path_corners,txt_with_locs,mat_format = nM.ge_int_layout( [[None, A], [E1, A1], [E2,A2]], pivots)
 #
 #print("mat_rep ="); print(mat_rep)
 #print("pivot_locs =");pivot_locs

@@ -160,37 +160,43 @@ build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], us
         if use_xetex is True:
             if use_dvi is True:
                 if nexec > 1:
-                    #print("EA42  case 1")
-                    _tex_program = ["xelatex", "--no-pdf", "-etex" ]
+                    #print("EXA  case 1")
+                    ###_tex_program = ["xelatex", "--no-pdf", "--etex" ]
+                    _tex_program = ["xelatex", "--no-pdf" ]
                     _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
                 else:
-                    #print("EA42  case 2")
-                    _tex_program = ["latexmk", "--quiet", "--silent", "-xelatex", "-etex" ]
+                    #print("EXA  case 2")
+                    #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
+                    _tex_program = ["latexmk", "--quiet", "--silent", "--xelatex" ]
                     _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
             else:
                 if nexec > 1:
-                    #print("EA42  case 3")
-                    _tex_program = ["xelatex", "-etex" ]
+                    #print("EXA  case 3")
+                    #_tex_program = ["xelatex", "--etex" ]
+                    _tex_program = ["xelatex" ]
                     _svg_converter = [["pdf2svg"], ".pdf"]
                 else:
-                    #print("EA42  case 4")
-                    _tex_program = ["latexmk", "--quiet", "--silent", "-xelatex", "-etex" ]
+                    #print("EXA  case 4")
+                    #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
+                    _tex_program = ["latexmk", "--quiet", "--silent", "--xelatex" ]
                     _svg_converter = [["pdf2svg"], ".pdf"]
         else:
             if use_dvi is True:
-                #print("EA42  case 5")
-                _tex_program = ["latexmk", "--quiet", "--silent", "-etex", "-dvi" ]
+                #print("EXA  case 5")
+                #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-dvi" ]
+                _tex_program = ["latexmk", "--quiet", "--silent", "-dvi" ]
                 _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".dvi"]
             else:
-                #print("EA42  case 6")
-                _tex_program = ["latexmk", "--quiet", "--silent", "-etex", "-pdf" ]
+                #print("EXA  case 6")
+                #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-pdf" ]
+                _tex_program = ["latexmk", "--quiet", "--silent", "-pdf" ]
                 _svg_converter = [["pdf2svg"], ".pdf"]
     else:
-       #print("EA42  case 7")
+       #print("EXA  case 7")
        _tex_program = tex_program
        _svg_converter = svg_converter
     if crop:
-        _svg_crop = (["inkscape", "--export-plain-svg", "-D", "-o"])
+        _svg_crop = (["inkscape", "--export-plain-svg", "-D", "--export-margin=1", "-o"])
     else:
         _svg_crop = None
 
@@ -209,7 +215,7 @@ def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=Fa
     '''
 svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
-    #print("EA42 *** prefix: ",prefix);print("EA42 *** fetch tex prog:   ",tex_program); print("EA42 *** fetch converter:  ", svg_converter)
+    #print("EXA *** prefix: ",prefix);print("EXA *** fetch tex prog:   ",tex_program); print("EXA *** fetch converter:  ", svg_converter)
 
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
@@ -227,8 +233,14 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
             print(">>>> tex file path: ", tex_path)
             print(">>>> tex code:\n", src)
         with open(tex_path, "w") as fp:
-            #print( "EA42 ***writing to ", tex_path, "\nsrc:   ", src)
-            fp.write(src)
+            #print( "EXA ***writing to ", tex_path, "\nsrc:   ", src)
+            try:
+                fp.write(src)
+            except:
+                print("failed to write tex source", file=sys.stderr)
+                cleanup_artifacts(working_dir, src_hash)
+                return
+        #print("EXA file exists: ", os.path.exists(tex_path))
 
         try:
             tex_program.append( tex_path )
@@ -263,6 +275,16 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
                     print( "Could not copy files")
 
         except CalledProcessError as e:
+            if keep_file is not None:
+                try:
+                    if debug:
+                        print(">>>> Save Files: ", ' '.join(["cp", tex_path, keep_file+'.tex']))
+                        print("                 ", ' '.join(["cp", svg_path, keep_file+'.svg']))
+                    shutil_copy( tex_path, keep_file+'.tex' )
+                    shutil_copy( svg_path, keep_file+'.svg' )
+                except:
+                    print( "Could not copy files")
+
             cleanup_artifacts(working_dir, src_hash)
             err_msg = e.output.decode()
 
@@ -291,6 +313,7 @@ def cleanup_artifacts(working_dir, src_hash, *retaining):
 
     for file_name in fnmatch.filter(os.listdir(working_dir), glob):
         file_path = os.path.join(working_dir or '', file_name)
+        #print("EXA CLEANUP: remove file: ", file_path, " <<", retaining )
         if file_path not in retaining:
             os.unlink(file_path)
 
@@ -369,7 +392,7 @@ class TikZMagics(Magics):
         nexec = int(args.nexec)
         tex_program,svg_converter,svg_crop =  build_commands( args.tex_program, [["pdf2svg"],".pdf"], args.use_xetex, args.use_dvi, args.crop, nexec)
 
-        #print("EA42 **** working dir<<<<", get_cwd(args), ">>>>")
+        #print("EXA **** working dir<<<<", get_cwd(args), ">>>>")
         svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
                                    args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec, args.keep_file)
 
