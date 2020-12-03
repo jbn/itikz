@@ -118,8 +118,37 @@ def loc_format(x,parens=('(', ')') ):
     return '{s}{i}-{j}{e}'.format(s=parens[0],i=x[0],j=x[1], e=parens[1])
 
 # -----------------------------------------------------------------
-def submatrix_locations(n_layers, shape, row_offset=1, col_offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}'))):
+# This is not correct if a third or further layer has a different number of rows!
+def submatrix_locations(layers, which_layers=None, row_offset=1, col_offset=1, rep=lambda x,y:loc_format((x,y),('{','}'))):
     '''submatrix_locations(n_layers, shape, offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}')))
+    layers:         vertical stack of matrices
+    which_layers:   iterable over layers. (default = all)
+    shape:          (M,N) of each matrix
+    row_offset:     positions to skip from the top
+    col_offset:     positions to skip from the left
+    start_at_layer: first layer for which to add a submatrix
+    rep:            formater for a corner of the submatrix
+    '''
+
+    row_sizes = np.array([0,layers[0][1].shape[0]] + [layer[0].shape[0] for layer in layers[1:]])
+    col_sizes = np.array([0]+[ m.shape[1] for m in layers[1]])
+
+    row_start = np.cumsum( row_sizes )
+    col_start = np.cumsum( col_sizes )
+
+    num_matrices_in_layer = len( layers[1])
+    if which_layers is None: which_layers = range(0, len(layers))
+
+    sub_matrices = []
+    for lc in range(num_matrices_in_layer):
+        for lr in which_layers:
+            sub_matrices.append( rep(row_start[lr]+row_offset,col_start[lc]+col_offset)+
+                                 rep(row_start[lr+1]+row_offset-1,col_start[lc+1]+col_offset-1) )
+
+    return sub_matrices[1:]
+# -----------------------------------------------------------------
+def old_submatrix_locations(n_layers, shape, row_offset=1, col_offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}'))):
+    '''old_submatrix_locations(n_layers, shape, offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}')))
     n_layers:       number of layers
     shape:          (M,N) of each matrix
     row_offset:     positions to skip from the top
@@ -179,12 +208,15 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
 
     sep            = '% --------------------------------------------\n'
     mat_rep        = sep + tex_from_mat( layer_defs[0][1], front=Me, back=1, formater=(lambda x: f'{x:.0f}'))
-    submatrix_locs = submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
+    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
 
     for layer in layer_defs[1:]:
         mat_rep        += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
                  + tex_from_mat( np.hstack(layer), back=1, formater=lambda x: f'{x:.0f}')
-        submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+    #print( "OLD",  submatrix_locs)
+    submatrix_locs = submatrix_locations(layer_defs, row_offset=1, col_offset=1)
+    #print( "NEW",  nubmatrix_locs)
 
     if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
@@ -211,6 +243,7 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
 
 # -----------------------------------------------------------------
 def convert_layer_defs( layer_defs ):
+    '''convert layer_defs to [[None,A],[],[],[]]'''
     n_layers = len(layer_defs)
     A = np.array( layer_defs[0][1] )
     return [[None, A]] + [np.hstack(layer) for layer in layer_defs[1:]]
@@ -226,13 +259,16 @@ def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=
     sep            = '% --------------------------------------------\n'
     mat_rep        = sep + tex_from_mat( A, front=Me, back=1, formater=formater)
 
-    submatrix_locs = submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
+    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
+    #print("EXA OLD SUBMATRICES: ", submatrix_locs )
+    submatrix_locs = submatrix_locations(layer_defs, which_layers=range(1,n_layers), row_offset=1, col_offset=1)
+    #print("EXA NEW SUBMATRICES: ", nsubmatrix_locs )
 
     for layer in layer_defs[1:]:
         M = np.array(layer)
         mat_rep  += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
                  + tex_from_mat( M, back=1, formater=formater)
-        submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
 
     if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
@@ -271,12 +307,17 @@ def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, format
 
     sep            = '% --------------------------------------------\n'
     mat_rep        = sep + tex_from_mat( layer_defs[0][1], front=Me, back=1, formater=formater)
-    submatrix_locs = submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
+    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
 
     for layer in layer_defs[1:]:
         mat_rep        += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
                  + tex_from_mat( np.hstack(layer), back=1, formater=formater)
-        submatrix_locs += submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
+
+    #print("EXA OLD_SUBMATRICES=", submatrix_locs)
+    submatrix_locs = submatrix_locations(layer_defs,row_offset=1, col_offset=1)
+    #print("EXA NEW_SUBMATRICES=", submatrix_locs)
+
 
     if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
@@ -441,7 +482,8 @@ def qr_layout(A_,W_,formater=sym.latex):
 #loc_format( (1,2), parens=('{','}') )
 #pivot_locations([(1,3),(2,4)], n_layers=4, M=4, row_offset=10, col_offset=0)
 #
-#submatrix_locations( 2, (3,5), row_offset=1, col_offset=1+3, start_at_layer=0)
+#old_submatrix_locations( 2, (3,5), row_offset=1, col_offset=1+3, start_at_layer=0)
+#submatrix_locations( layers, row_offset=1, col_offset=1+3, start_at_layer=0)
 ###########################################################
 #pivots =[]; n_layers=0
 #A  = np.array([[1.,2,1,  9,9],[3,4,5, 9,9], [5,6,1, 9,9]]); pivots.append((1,1)); n_layers=1
