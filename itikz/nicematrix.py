@@ -214,9 +214,7 @@ def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
         mat_rep        += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
                  + tex_from_mat( np.hstack(layer), back=1, formater=lambda x: f'{x:.0f}')
         #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
-    #print( "OLD",  submatrix_locs)
     submatrix_locs = submatrix_locations(layer_defs, row_offset=1, col_offset=1)
-    #print( "NEW",  nubmatrix_locs)
 
     if pivots is not None and not decorate:
         pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
@@ -260,9 +258,7 @@ def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=
     mat_rep        = sep + tex_from_mat( A, front=Me, back=1, formater=formater)
 
     #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
-    #print("EXA OLD SUBMATRICES: ", submatrix_locs )
     submatrix_locs = submatrix_locations(layer_defs, which_layers=range(1,n_layers), row_offset=1, col_offset=1)
-    #print("EXA NEW SUBMATRICES: ", nsubmatrix_locs )
 
     for layer in layer_defs[1:]:
         M = np.array(layer)
@@ -314,9 +310,7 @@ def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, format
                  + tex_from_mat( np.hstack(layer), back=1, formater=formater)
         #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
 
-    #print("EXA OLD_SUBMATRICES=", submatrix_locs)
     submatrix_locs = submatrix_locations(layer_defs,row_offset=1, col_offset=1)
-    #print("EXA NEW_SUBMATRICES=", submatrix_locs)
 
 
     if pivots is not None and not decorate:
