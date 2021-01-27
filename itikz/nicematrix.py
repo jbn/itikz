@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sym
+import jinja2
 
 extension = r'''
 \ExplSyntaxOn
@@ -129,6 +130,9 @@ def submatrix_locations(layers, which_layers=None, row_offset=1, col_offset=1, r
     start_at_layer: first layer for which to add a submatrix
     rep:            formater for a corner of the submatrix
     '''
+    print("EXA ============================================== submatrix_locations" )
+    for m in layers[1]:
+        print(".  ", m)
 
     row_sizes = np.array([0,layers[0][1].shape[0]] + [layer[0].shape[0] for layer in layers[1:]])
     col_sizes = np.array([0]+[ m.shape[1] for m in layers[1]])
@@ -247,7 +251,7 @@ def convert_layer_defs( layer_defs ):
     return [[None, A]] + [np.hstack(layer) for layer in layer_defs[1:]]
 
 # -----------------------------------------------------------------
-def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
     n_layers = len(layer_defs)
     A = np.array( layer_defs[0][1] )
 
@@ -290,13 +294,13 @@ def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=
     return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
 # -----------------------------------------------------------------
 # Needs debugging
-def new_ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+def new_ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
     '''generate a ge_layout with a certain number of rhs'''
     defs = convert_layer_defs( layer_defs )
     return ge_layout_from_stacked( defs, Nrhs=Nrhs, pivots=pivots, txt=txt, decorate=decorate, formater=formater )
 
 # -----------------------------------------------------------------
-def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=lambda x: x ):
+def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
     n_layers = len(layer_defs)
     Ma,Na    = layer_defs[0][1].shape   # matrix sizes
     Me,Ne    = Ma,Ma                    #
@@ -352,12 +356,9 @@ GE_TEMPLATE = r'''
 \usetikzlibrary{calc,fit}
 
 {{extension}}
-
 \begin{document}
 {{preamble}}
-
-\bigskip
-
+% ================================================================================
 $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 {{mat_rep}}
 \CodeAfter
@@ -376,14 +377,9 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 
 % ----------------------------------------- explanatory text
     {% for loc,txt in txt_with_locs: -%}
-        \node [right,align=left] at {{loc}}  {\quad {{txt}} } ;
+        \node [right,align=left] at {{loc}}  {\qquad {{txt}} } ;
     {% endfor -%}
 
-%\node [right,align=left] at (2-8.east)  {\quad Augment $A$ with both $b_1$ and $b_2$.\\
-%                                         \quad Choose pivot 2.} ;
-%\node [right] at (5-8.east)             {\quad Choose the second pivot 1} ;
-%\node [right] at (8-8.east)             {\quad Choose the third pivot 3.} ;
-%\node [right] at (11-8.east)            {\quad Finally, scale each pivot to 1.} ;
 %\node [right,align=left] at (14-8.east) {\quad There are no free variables.\\
 %                                        \quad We have obtained a unique solution.} ;
 
@@ -471,8 +467,371 @@ def qr_layout(A_,W_,formater=sym.latex):
            mat_fmt,\
            submatrix_locs_1+submatrix_locs_2+submatrix_locs_3
 
+# ========================================================================================
+# NEW: replacement for the previous formating functions
+# ========================================================================================
+class MatrixGridLayout:
+    ''' Basic Computations of the Matrix Grid Layout and the resulting Tex Representation
+        Indexing is zero-based.
 
-# =================================================================
+        The matrices are first written into an array, with an associated format string:
+            array_format_string_list()
+            array_of_tex_entries()
+            decorate_tex_entries()
+        Each array row is converted to a string
+            tex_repr
+        The display is further enhanced by adding
+            nm_add_option
+            nm_submatrix_locs
+    '''
+
+    def __init__(self, matrices, extra_cols=None, extra_rows = None ):
+        '''save the matrices, determine the matrix grid dimensions and the number of rows in the first row of the grid
+           Note that the number of cols in the first grid row and/or the number of rows in the first grid col can be ragged
+        '''
+        if not isinstance( matrices, list):
+            matrices = [[ None, matrices ]]
+
+        self.matrices         = matrices
+        self.nGridRows        = len(matrices)
+        self.nGridCols        = len(matrices[0])
+
+        self._set_shapes()
+
+        self.mat_row_height   = [ self.maxRows_Row_0 ] + [ m[0].shape[0] for m in matrices[1:] ]
+        self.mat_col_width    = [ self.maxCols_Col_0 ] + [ m.shape[1] for m in matrices[0][1:] ]
+
+        self.adjust_positions( extra_cols, extra_rows )
+        self.txt_with_locs    = []
+        #self.row_echelon_paths= []
+
+    def adjust_positions( self, extra_cols=None, extra_rows=None ):
+        '''insert extra rows and cols between matrices'''
+        self.extra_cols          = MatrixGridLayout._set_extra( extra_cols, self.nGridCols )
+        self.extra_rows          = MatrixGridLayout._set_extra( extra_rows, self.nGridRows )
+
+        self.cs_extra_cols       = np.cumsum( self.extra_cols )
+        self.cs_extra_rows       = np.cumsum( self.extra_rows )
+
+        self.cs_mat_row_height   = np.cumsum( np.hstack([[0], self.mat_row_height]))
+        self.cs_mat_col_width    = np.cumsum( np.hstack([[0], self.mat_col_width ]))
+
+        self.tex_shape = (self.cs_mat_row_height[-1]+self.cs_extra_rows[-1],
+                          self.cs_mat_col_width [-1]+self.cs_extra_cols[-1])
+
+    def _set_shapes(self):
+        self.array_shape = np.empty((self.nGridRows, self.nGridCols), tuple)
+        for j in range(self.nGridCols):
+            for i in range(self.nGridRows):
+                try:
+                    self.array_shape[i,j] = (self.matrices[i][j]).shape
+                except:
+                    self.array_shape[i,j] = (0,0)
+
+        if self.nGridRows > 1:
+            self.n_Col_0 = [s[1] for s in self.array_shape[1:,0]]
+        else:
+            self.n_Col_0 = [self.array_shape[0,1][1]]
+
+        if self.nGridCols > 1:
+            self.m_Row_0 = [s[0] for s in self.array_shape[0,1:]]
+        else:
+            self.m_Row_0 = [s[1] for s in self.array_shape[0,1:]]
+
+        self.maxRows_Row_0    = max( self.m_Row_0 )
+        self.maxCols_Col_0    = max( self.n_Col_0 )
+
+    def _set_extra( extra, n ):
+        if isinstance(extra, int):
+            extra = np.hstack([ np.repeat( 0, n), [extra] ])
+        elif extra is None:
+            extra = np.repeat( 0, n+1 )
+        else:
+            assert( len(extra) == (n+1))
+        return extra
+
+    def describe(self):
+        #self.grid_shape = [len(self.mat_row_height), len(self.mat_col_width)]
+        #                = [self.nGridRows, self.nCOLMats]
+
+        print( f"Layout {self.nGridRows} x {self.nGridCols} grid:")
+
+        print( f".  first grid row has max rows = {self.maxRows_Row_0} <= COLS: {self.mat_col_width}")
+        print( f".  first grid col has max cols = {self.maxCols_Col_0} <= ROWS: {self.mat_row_height}")
+        print( f".  insert extra_cols:            {self.extra_cols}")
+        print( f".  col_start                   = {self.cs_mat_col_width  + self.cs_extra_cols}")
+        print( f".  row_start                   = {self.cs_mat_row_height + self.cs_extra_rows}")
+        print()
+
+        print( "Consistent Matrix Sizes in the grid")
+        for i in self.mat_row_height:
+            for j in self.mat_col_width:
+                print( f'  {(i,j)}', end='')
+            print()
+
+        print("Actual TopLeft:BottomRight Indices")
+        for i in range(self.nGridRows):
+            for j in range(self.nGridCols):
+                tl,br,_ = self._top_left_bottom_right(i,j)
+                print( f'  {tl}:{br}', end='')
+            print()
+
+    def element_indices( self, i,j, gM, gN ):
+        '''return the actual indices of element (i,j) in the matrix at grid position (gM,gN)'''
+        last_row  = self.cs_mat_row_height[gM+1] + self.cs_extra_rows[gM]
+        last_col  = self.cs_mat_col_width [gN+1] + self.cs_extra_cols[gN]
+        #A_shape   = (self.matrices[gM][gN]).shape
+        A_shape   = self.array_shape[gM][gN]
+        return (last_row - (A_shape[0] -i),
+                last_col - (A_shape[1] - j)
+               )
+
+    def _top_left_bottom_right( self, gM, gN ):
+        ''' given the grid position obtain the actual indices of the top left corner for the matrix'''
+        A_shape = self.array_shape[gM,gN]
+
+        row_offset = self.cs_extra_rows[gM]+self.cs_mat_row_height[gM]+self.mat_row_height[gM]-A_shape[0]
+        col_offset = self.cs_extra_cols[gN]+self.cs_mat_col_width [gN]+self.mat_col_width [gN]-A_shape[1]
+        return (row_offset, col_offset), \
+               (row_offset+A_shape[0]-1, col_offset+A_shape[1]-1), \
+               A_shape
+
+    def tex_repr( self, blockseps = r'\noalign{\vskip2mm} '):
+        '''Create a list of strings, one for each line in the grid'''
+        self.tex_list =[' & '.join( self.a_tex[k,:]) for k in range(self.a_tex.shape[0])]
+        for i in range( len(self.tex_list) -1):
+            self.tex_list[i] += r' \\'
+
+        sep = ' ' + blockseps
+        for i in (self.cs_mat_row_height[1:-1] + self.cs_extra_rows[1:-1] - self.extra_rows[1:-1]):
+            self.tex_list[i-1] += sep
+
+        if self.extra_rows[-1] != 0: # if there are final extra rows, we need another sep
+            self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += sep
+
+    def array_of_tex_entries(self, formater=repr):
+        '''Create a matrix of strings from the grid entries'''
+
+        a_tex = np.full( self.tex_shape,"", dtype=object)
+
+        for i in range(self.nGridRows):
+            for j in range(self.nGridCols):
+                tl,br,shape = self._top_left_bottom_right(i,j)
+                A = self.matrices[i][j]
+                for ia in range( shape[0]):
+                    for ja in range(shape[1]):
+                        a_tex[ tl[0]+ia, tl[1]+ja ] = formater( A[ia,ja])
+        self.a_tex = a_tex
+
+    def decorate_tex_entries( self, gM, gN, decorate, entries=None):
+        '''apply decorate to the list of i,j entries to grid matrix at (gM,gN)'''
+        try: # avoid writing code for A == None case
+            tl,br,shape = self._top_left_bottom_right(gM,gN)
+
+            if entries is None:
+                for i in range(shape[0]):
+                    for j in range(shape[1]):
+                        self.a_tex[tl[0]+i, tl[1]+j] = decorate(self.a_tex[tl[0]+i, tl[1]+j])
+            else:
+                for (i,j) in entries:
+                    s =  decorate(self.a_tex[tl[0]+i, tl[1]+j])
+                    self.a_tex[tl[0]+i, tl[1]+j] = s
+        except:
+            pass
+
+    def matrix_array_format( N, p_str='I', vpartitions=None):
+        '''format string for a matrix with N columns'''
+        if vpartitions is None:
+            return f"*{N}r"
+        s     = ""
+        cur   = 0
+        for p in vpartitions:
+            s += f"*{p-cur}r{p_str}"
+            cur = p
+        if cur < N:
+            s += f"*{N-cur}r"
+        return s
+
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
+        '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
+
+        for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
+            if i not in partitions:
+                partitions[i]=None
+
+        # format for initial extra cols
+        l   = self.extra_cols[0]
+        fmt = l*'r'
+
+        last = self.nGridCols - 1
+        for i in range(self.nGridCols):
+            # we now iterate over (matrix, extra) pairs
+            # -----------  matrix -----------------------
+            N    = self.mat_col_width[i]
+            fmt += spacer_string + MatrixGridLayout.matrix_array_format( N, p_str=p_str, vpartitions=partitions[i] )
+
+            # ------------ spacer ----------------------
+            l = self.extra_cols[i+1]
+            if l > 0:
+                if i == last:
+                    fmt += spacer_string + (l-1)*'r'+last_col_format
+                else:
+                    fmt += spacer_string + l*'r'
+
+        self.format = fmt
+
+    def tl_shape_below( self, gM, gN ):
+        '''obtain tl and shape of free space below grid matrix at (gM, gN)'''
+        tl,br,_ = self._top_left_bottom_right( gM, gN )
+        free_tl = (br[0]+1, tl[1])
+        shape   = (self.tex_shape[0]-free_tl[0], self.tex_shape[1] - tl[1])
+        return free_tl, shape
+
+    def tl_shape_above( self, gM, gN ):
+        '''obtain tl and shape of free space above grid matrix at (gM, gN)'''
+        tl,br,_ = self._top_left_bottom_right( gM, gN )
+        free_tl = (tl[0]-self.extra_rows[gM], tl[1])
+        shape   = (self.extra_rows[gM], self.tex_shape[1]-free_tl[1])
+        return free_tl, shape
+
+    def tl_shape_left( self, gM, gN ):
+        '''obtain tl and shape of free space above grid matrix at (gM, gN)'''
+        tl,_,_ = self._top_left_bottom_right( gM, gN )
+        return (tl[0],tl[1]-self.extra_cols[gN]), \
+               (self.tex_shape[0]-tl[0],self.extra_cols[gN])
+
+    def tl_shape_right( self, gM, gN ):
+        '''obtain tl and shape of free space above grid matrix at (gM, gN)'''
+        tl,_,shape = self._top_left_bottom_right( gM, gN )
+        return (tl[0],tl[1]+shape[1]), \
+               (self.tex_shape[0]-tl[0],self.extra_cols[gN+1])
+
+    def add_row_above( self, gM, gN, m, formater=repr, offset=0 ):
+        '''add tex entries to the tex array'''
+        tl,shape = self.tl_shape_above( gM, gN )
+        for (j,v) in enumerate(m):
+            self.a_tex[tl[0]+offset, tl[1]+j] = formater( v )
+
+    def add_row_below( self, gM, gN, m, formater=repr, offset=0 ):
+        '''add tex entries to the tex array'''
+        tl,shape = self.tl_shape_below( gM, gN )
+        for (j,v) in enumerate(m):
+            self.a_tex[tl[0]+offset, tl[1]+j] = formater( v )
+
+    def add_col_right( self, gM, gN, m, formater=repr, offset=0 ):
+        '''add tex entries to the tex array'''
+        tl,shape = self.tl_shape_right( gM, gN )
+        for (i,v) in enumerate(m):
+            self.a_tex[tl[0]+i, tl[1]+offset] = formater( v )
+
+    def add_col_left( self, gM, gN, m, formater=repr, offset=0 ):
+        '''add tex entries to the tex array'''
+        tl,shape = self.tl_shape_left( gM, gN )
+        for (i,v) in enumerate(m):
+            self.a_tex[tl[0]+i, tl[1]+offset] = formater( v )
+
+    #def add_row_echelon_path( self, gM, gN, pivot_locs, tikz_opts='[dashed,red]' ):
+    #    '''This would work, but produces an unsatisfactory result'''
+    #    l = [tikz_opts]
+    #    for p in pivot_locs:
+    #        i,j = self.element_indices( *p, gM, gN ); i+=1; j+= 1
+    #        l.extend([ f'(row-{i}-|col-{j})', f'(row-{i+1}-|col-{j})'])
+    #    i+=1; j+= 1
+    #    l.append( f'(row-{i}-|col-{j})')
+    #    self.row_echelon_paths.append(l)
+
+    def nm_submatrix_locs(self):
+        '''nicematrix style location descriptors of the submatrices'''
+        locs = []
+        for i in range(self.nGridRows):
+            for j in range(self.nGridCols):
+                tl,br,_ = self._top_left_bottom_right(i,j)
+                locs.append( f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}" )
+        self.locs = locs[1:]
+
+    def nm_text(self, txt_list):
+        '''add text add each layer (requires a right-most extra col)'''
+        assert( self.extra_cols[-1] != 0 )
+
+        # find the indices of the first row in the last col (+1 for nicematrix indexing)
+        txt_with_locs = []
+        for (g,txt) in enumerate(txt_list):
+            #A_shape   = (self.matrices[g][self.nGridCols-1]).shape
+            A_shape   = self.array_shape[g][self.nGridCols-1]
+
+            first_row = self.cs_mat_row_height[g] + self.cs_extra_rows[g] + (self.mat_row_height[g] - A_shape[0])+1
+            txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt) )
+        self.txt_with_locs = txt_with_locs
+
+    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension ):
+        return jinja2.Template( template ).render( \
+                preamble       = preamble,
+                extension      = extension,
+                mat_rep        = '\n'.join( self.tex_list ),
+                mat_format     = '{'+self.format+'}',
+                mat_options    = '',
+                submatrix_locs = self.locs,
+                pivot_locs     = [],
+                txt_with_locs  = self.txt_with_locs)
+
+def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
+    box_decorator         = "\\boxed<{a}>"
+    color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<1-1><{a}>"
+    txt_color_decorator   = "\\color<{color}><{a}>"
+    bf_decorator          = "\\mathbf<{a}>"
+
+    x = '{a}'
+    if bf is not None:
+        x = bf_decorator.format(a=x)
+    if boxed is not None:
+        x = box_decorator.format( a=x )
+    if text_bg is not None:
+        x = color_decorator.format(a=x, text_color= text_color, bg_color=text_bg)
+    elif text_color != 'black':
+        x = txt_color_decorator.format( color=text_color, a=x)
+    x = x.replace('<','{{').replace('>','}}')
+
+    return lambda a: x.format(a=a)
+
+# ==================================================================================================
+# New Examples
+# ==================================================================================================
+#    k  = sym.Symbol('k'); h = sym.Symbol('h')
+#    Ab = sym.Matrix([[1,2,4,1],[2,k,8,h],[3,7,3,1]]); matrices = [[None, Ab]]; pivots = []; txt=[]
+#    # we could use row ops, but we want a computational layout (and hence the E matrices!):
+#    #    A=A.elementary_row_op('n->n+km', k=-3, row1=2,row2=0 );A
+#    #    A=A.elementary_row_op('n<->m',row1=1,row2=2);A
+#    
+#    E1=sym.eye(3);E1[1:,0]=[-2,-3]; A1=E1*Ab;                               matrices.append([E1,A1]); pivots.append((1,1));txt.append('Pivot at (1,1)')
+#    E2=sym.eye(3);E2=E2.elementary_row_op('n<->m',row1=1,row2=2); A2=E2*A1; matrices.append([E2,A2]); pivots.append(None); txt.append('Rows 2 <-> 3')
+#    E3=sym.eye(3);E3[2,1]=4-k; A3=E3*A2;                                    matrices.append([E3,A3]); pivots.append((2,2));txt.append('Pivot at (2,2)')
+#    pivots.append((3,3)); txt.append('In Row Echelon Form')
+#    
+# m3 = nM.MatrixGridLayout(matrices, extra_cols=1)
+# m3.array_format_string_list( partitions={ 1:[3]} )
+# m3.array_of_tex_entries()
+# red_box = nM.make_decorator( text_color='red', boxed=True, bf=True )
+# m3.decorate_tex_entries( 0,1, red_box, entries=[(0,0)] )
+# m3.decorate_tex_entries( 1,1, red_box, entries=[(0,0),(1,1)] )
+# m3.decorate_tex_entries( 2,1, red_box, entries=[(0,0),(1,1)] )
+# m3.decorate_tex_entries( 3,1, red_box, entries=[(0,0),(1,1),(2,2)] )
+# 
+# m3.nm_text(txt)
+# 
+# m3.nm_submatrix_locs()
+# m3.tex_repr( blockseps = r'\noalign{\vskip2mm}')
+# 
+# m3_code = m3.nm_latexdoc(template = nM.GE_TEMPLATE, preamble = nM.preamble, extension = nM.extension )
+# 
+# if True:
+#     h = itikz.fetch_or_compile_svg(
+#         m3_code, prefix='tst_', working_dir='/tmp/itikz', debug=False,
+#         **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
+#         nexec=4, keep_file="/tmp/itikz/m3" )
+# h
+# ==================================================================================================
+# OLD EXAMPLES
+# ==================================================================================================
 #loc_format( (1,2), parens=('{','}') )
 #pivot_locations([(1,3),(2,4)], n_layers=4, M=4, row_offset=10, col_offset=0)
 #
