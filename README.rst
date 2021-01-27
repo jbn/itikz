@@ -11,13 +11,22 @@ itikz
 
 .. image:: https://img.shields.io/coveralls/github/jbn/itikz.svg
         :target: https://coveralls.io/github/jbn/itikz
-
 Cell magic for PGF/TikZ-to-SVG rendering in Jupyter
 
 * Free software: MIT license
 
 Basic Usage
 -----------
+The installation information below will install the version provided by the original author.
+To use the upgraded version here, download it, and copy the itikz subdirectory into
+a directory in your PYTHONPATH.
+
+To see the directories in your pythonpath, execute the following in python:
+
+..code:: python
+
+   import sys
+   print( sys.path )
 
 Install it:
 
