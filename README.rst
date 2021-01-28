@@ -23,7 +23,7 @@ a directory in your PYTHONPATH.
 
 To see the directories in your pythonpath, execute the following in python:
 
-..code:: python
+.. code:: python
 
    import sys
    print( sys.path )
