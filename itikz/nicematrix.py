@@ -130,9 +130,6 @@ def submatrix_locations(layers, which_layers=None, row_offset=1, col_offset=1, r
     start_at_layer: first layer for which to add a submatrix
     rep:            formater for a corner of the submatrix
     '''
-    print("EXA ============================================== submatrix_locations" )
-    for m in layers[1]:
-        print(".  ", m)
 
     row_sizes = np.array([0,layers[0][1].shape[0]] + [layer[0].shape[0] for layer in layers[1:]])
     col_sizes = np.array([0]+[ m.shape[1] for m in layers[1]])
@@ -489,21 +486,32 @@ class MatrixGridLayout:
         '''save the matrices, determine the matrix grid dimensions and the number of rows in the first row of the grid
            Note that the number of cols in the first grid row and/or the number of rows in the first grid col can be ragged
         '''
-        if not isinstance( matrices, list):
+        # Fix up matrices
+        if not isinstance( matrices, list):  # allow using this class for a single matrix [[None, A]]
             matrices = [[ None, matrices ]]
 
-        self.matrices         = matrices
-        self.nGridRows        = len(matrices)
-        self.nGridCols        = len(matrices[0])
+        self.matrices = []
+        cnt_layers    = 0
+        for (i,layer) in enumerate(matrices): # ensure the matrices are not passed as lists
+            cnt_layers += 1
+            l = []
+            for (j,mat) in enumerate(layer):
+                if isinstance( mat, list ):
+                    l.append( np.array(mat) )
+                else:
+                    l.append( mat )
+            self.matrices.append(l)
+
+        self.nGridRows        = cnt_layers # len(self.matrices)
+        self.nGridCols        = len(self.matrices[0])
 
         self._set_shapes()
 
-        self.mat_row_height   = [ self.maxRows_Row_0 ] + [ m[0].shape[0] for m in matrices[1:] ]
-        self.mat_col_width    = [ self.maxCols_Col_0 ] + [ m.shape[1] for m in matrices[0][1:] ]
+        self.mat_row_height = [ self.maxRows_Row_0 ] + [ s[0] for s in self.array_shape[1:,0] ]
+        self.mat_col_width  = [ self.maxCols_Col_0 ] + [ s[1] for s in self.array_shape[0,1:] ]
 
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
-        #self.row_echelon_paths= []
 
     def adjust_positions( self, extra_cols=None, extra_rows=None ):
         '''insert extra rows and cols between matrices'''
@@ -521,8 +529,9 @@ class MatrixGridLayout:
 
     def _set_shapes(self):
         self.array_shape = np.empty((self.nGridRows, self.nGridCols), tuple)
-        for j in range(self.nGridCols):
-            for i in range(self.nGridRows):
+
+        for i in range(self.nGridRows):
+            for j in range(self.nGridCols):
                 try:
                     self.array_shape[i,j] = (self.matrices[i][j]).shape
                 except:

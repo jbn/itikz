@@ -13,10 +13,16 @@ from subprocess import run as run_subprocess
 from IPython.display import SVG, Image
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 
+from pathlib import Path
+import tempfile
+
+import logging
+logger = logging.getLogger()
+logger.setLevel( logging.DEBUG )
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.5ea'
+__version__ = '0.1.6ea'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -136,7 +142,43 @@ def parse_args(line):
 
     return parser, parser.parse_args(shlex.split(line))
 
+# TODO: Replace get_working_dir etc routines with these
+def get_wd(s, root=None, add_itikz=True ):
+    if root is None:
+        tmp = os.environ.get( 'ITIKZ_TEMP_DIR' )
+        if not tmp:
+            import platform
+            root = Path("/tmp" if platform.system() == "Darwin" else tempfile.gettempdir())
+        else:
+            root = Path(tmp)
+    if s is None:
+        if add_itikz:
+            root = root / 'itikz'
+        return root
 
+    s      = Path(s)
+    l      = len( s.parts )
+    sa     = Path(s).absolute()
+
+    if s.is_dir():
+        d = sa / 'itikz' if add_itikz else sa
+    if l > 1 and s.parent.is_dir():
+        d = sa / 'itikz' if add_itikz else sa
+    else:
+        d =  root / s
+        d = d / 'itikz' if add_itikz else d
+
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+# TODO: Replace these directory and file path commands with pathlib versions
+def get_working_dir(working_dir):
+    if working_dir is not None or os.environ.get('ITIKZ_TEMP_DIR'):
+        cwd = os.path.join(tempfile.gettempdir(), 'itikz')
+        os.makedirs(cwd, exist_ok=True)
+        logger.debug('Working Directory: ', cwd )
+        return cwd  # Override as cwd
+    else:
+        return None  # No override.
 def get_cwd(args):
     if args.temp_dir or os.environ.get('ITIKZ_TEMP_DIR'):
         cwd = os.path.join(tempfile.gettempdir(), 'itikz')
@@ -215,7 +257,9 @@ def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=Fa
     '''
 svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
-    #print("EXA *** prefix: ",prefix);print("EXA *** fetch tex prog:   ",tex_program); print("EXA *** fetch converter:  ", svg_converter)
+    working_dir = get_working_dir(working_dir)
+    if keep_file is not None:
+        keep_file   = os.path.join( os.getcwd(), keep_file )
 
     src_hash = md5(src.encode()).hexdigest()
     output_path = prefix + src_hash
