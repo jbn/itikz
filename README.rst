@@ -26,9 +26,10 @@ To see the directories in your pythonpath, execute the following in python:
 .. code:: python
 
    import sys
-   print( sys.path )
+   for p in sys.path:
+       print( p )
 
-Install it:
+To install the original version instead, run:
 
 .. code:: sh
 
