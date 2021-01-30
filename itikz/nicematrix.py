@@ -507,8 +507,8 @@ class MatrixGridLayout:
 
         self._set_shapes()
 
-        self.mat_row_height = [ self.maxRows_Row_0 ] + [ s[0] for s in self.array_shape[1:,0] ]
-        self.mat_col_width  = [ self.maxCols_Col_0 ] + [ s[1] for s in self.array_shape[0,1:] ]
+        self.mat_row_height = [ max(map( lambda s: s[0], self.array_shape[i, :])) for i in range(self.nGridRows)]
+        self.mat_col_width  = [ max(map( lambda s: s[1], self.array_shape[:, j])) for j in range(self.nGridCols)]
 
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
@@ -547,9 +547,6 @@ class MatrixGridLayout:
         else:
             self.m_Row_0 = [s[1] for s in self.array_shape[0,1:]]
 
-        self.maxRows_Row_0    = max( self.m_Row_0 )
-        self.maxCols_Col_0    = max( self.n_Col_0 )
-
     def _set_extra( extra, n ):
         if isinstance(extra, int):
             extra = np.hstack([ np.repeat( 0, n), [extra] ])
@@ -565,8 +562,6 @@ class MatrixGridLayout:
 
         print( f"Layout {self.nGridRows} x {self.nGridCols} grid:")
 
-        print( f".  first grid row has max rows = {self.maxRows_Row_0} <= COLS: {self.mat_col_width}")
-        print( f".  first grid col has max cols = {self.maxCols_Col_0} <= ROWS: {self.mat_row_height}")
         print( f".  insert extra_cols:            {self.extra_cols}")
         print( f".  col_start                   = {self.cs_mat_col_width  + self.cs_extra_cols}")
         print( f".  row_start                   = {self.cs_mat_row_height + self.cs_extra_rows}")
@@ -737,7 +732,7 @@ class MatrixGridLayout:
         '''add tex entries to the tex array'''
         tl,shape = self.tl_shape_left( gM, gN )
         for (i,v) in enumerate(m):
-            self.a_tex[tl[0]+i, tl[1]+offset] = formater( v )
+            self.a_tex[tl[0]+i, tl[1]+offset-1] = formater( v )
 
     #def add_row_echelon_path( self, gM, gN, pivot_locs, tikz_opts='[dashed,red]' ):
     #    '''This would work, but produces an unsatisfactory result'''
@@ -754,9 +749,11 @@ class MatrixGridLayout:
         locs = []
         for i in range(self.nGridRows):
             for j in range(self.nGridCols):
-                tl,br,_ = self._top_left_bottom_right(i,j)
-                locs.append( f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}" )
-        self.locs = locs[1:]
+                if self.array_shape[i,j][0] != 0:
+                    tl,br,_ = self._top_left_bottom_right(i,j)
+                    locs.append( f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}" )
+
+        self.locs = locs
 
     def nm_text(self, txt_list):
         '''add text add each layer (requires a right-most extra col)'''
@@ -782,10 +779,10 @@ class MatrixGridLayout:
                 submatrix_locs = self.locs,
                 pivot_locs     = [],
                 txt_with_locs  = self.txt_with_locs)
-
+# -----------------------------------------------------------------------------------------------------
 def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
     box_decorator         = "\\boxed<{a}>"
-    color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<1-1><{a}>"
+    color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bf_decorator          = "\\mathbf<{a}>"
 
@@ -802,6 +799,55 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
 
     return lambda a: x.format(a=a)
 
+# -----------------------------------------------------------------------------------------------------
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, tmp_dir=None, keep_file=None):
+    '''basic GE layout:
+    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+    pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivto or not
+    '''
+    extra_cols = None if comment_list     is None else 1
+    extra_rows = None if variable_summary is None else 2
+
+    m = MatrixGridLayout(matrices, extra_rows=extra_rows, extra_cols = extra_cols )
+
+    # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
+    partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+    m.array_format_string_list( partitions=partitions )
+    m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
+
+    if pivot_list is not None:
+        red_box = make_decorator( text_color='red', boxed=True, bf=True )
+        for spec in pivot_list:
+            m.decorate_tex_entries( *spec[0], red_box, entries=spec[1] )
+
+    if comment_list is not None:
+        m.nm_text( comment_list )
+
+    if variable_summary is not None:
+        blue    = make_decorator(text_color='blue', bf=True)
+        red     = make_decorator(text_color='red',  bf=True)
+        typ     = []
+        var     = []
+        for (i,basic) in enumerate(variable_summary):
+            if basic:
+                typ.append(red(r'\Uparrow'))
+                var.append( red( f'x_{i+1}'))
+            else:
+                typ.append(blue(r'\uparrow'))
+                var.append(blue( f'x_{i+1}'))
+        m.add_row_below(m.nGridRows-1,1,typ,           formater=lambda a: a )
+        m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
+
+    m.nm_submatrix_locs()     # this defines the submatrices (the matrix delimiters)
+    m.tex_repr()              # converts the array of TeX entries into strings with separators and spacers
+
+    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension )
+
+    return m, m_code
+
 # ==================================================================================================
 # New Examples
 # ==================================================================================================
@@ -810,12 +856,12 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
 #    # we could use row ops, but we want a computational layout (and hence the E matrices!):
 #    #    A=A.elementary_row_op('n->n+km', k=-3, row1=2,row2=0 );A
 #    #    A=A.elementary_row_op('n<->m',row1=1,row2=2);A
-#    
+#
 #    E1=sym.eye(3);E1[1:,0]=[-2,-3]; A1=E1*Ab;                               matrices.append([E1,A1]); pivots.append((1,1));txt.append('Pivot at (1,1)')
 #    E2=sym.eye(3);E2=E2.elementary_row_op('n<->m',row1=1,row2=2); A2=E2*A1; matrices.append([E2,A2]); pivots.append(None); txt.append('Rows 2 <-> 3')
 #    E3=sym.eye(3);E3[2,1]=4-k; A3=E3*A2;                                    matrices.append([E3,A3]); pivots.append((2,2));txt.append('Pivot at (2,2)')
 #    pivots.append((3,3)); txt.append('In Row Echelon Form')
-#    
+#
 # m3 = nM.MatrixGridLayout(matrices, extra_cols=1)
 # m3.array_format_string_list( partitions={ 1:[3]} )
 # m3.array_of_tex_entries()
@@ -824,14 +870,14 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
 # m3.decorate_tex_entries( 1,1, red_box, entries=[(0,0),(1,1)] )
 # m3.decorate_tex_entries( 2,1, red_box, entries=[(0,0),(1,1)] )
 # m3.decorate_tex_entries( 3,1, red_box, entries=[(0,0),(1,1),(2,2)] )
-# 
+#
 # m3.nm_text(txt)
-# 
+#
 # m3.nm_submatrix_locs()
 # m3.tex_repr( blockseps = r'\noalign{\vskip2mm}')
-# 
+#
 # m3_code = m3.nm_latexdoc(template = nM.GE_TEMPLATE, preamble = nM.preamble, extension = nM.extension )
-# 
+#
 # if True:
 #     h = itikz.fetch_or_compile_svg(
 #         m3_code, prefix='tst_', working_dir='/tmp/itikz', debug=False,
