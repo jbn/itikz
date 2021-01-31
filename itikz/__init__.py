@@ -160,32 +160,22 @@ def get_wd(s, root=None, add_itikz=True ):
     l      = len( s.parts )
     sa     = Path(s).absolute()
 
-    if s.is_dir():
+    if sa.is_dir():
         d = sa / 'itikz' if add_itikz else sa
-    if l > 1 and s.parent.is_dir():
+    elif l > 1 and s.parent.is_dir():
         d = sa / 'itikz' if add_itikz else sa
     else:
-        d =  root / s
+        d = root / s
         d = d / 'itikz' if add_itikz else d
 
     d.mkdir(parents=True, exist_ok=True)
     return d
-# TODO: Replace these directory and file path commands with pathlib versions
-def get_working_dir(working_dir):
-    if working_dir is not None or os.environ.get('ITIKZ_TEMP_DIR'):
-        cwd = os.path.join(tempfile.gettempdir(), 'itikz')
-        os.makedirs(cwd, exist_ok=True)
-        logger.debug('Working Directory: ', cwd )
-        return cwd  # Override as cwd
-    else:
-        return None  # No override.
-def get_cwd(args):
-    if args.temp_dir or os.environ.get('ITIKZ_TEMP_DIR'):
-        cwd = os.path.join(tempfile.gettempdir(), 'itikz')
-        os.makedirs(cwd, exist_ok=True)
-        return cwd  # Override as cwd
-    else:
-        return None  # No override.
+
+def get_wf(s, root, sfx='.tex'):
+    s = Path(s)
+    if s.is_absolute():
+        return root / s.parent / (s.name + sfx)
+    return root / ( "/".join( s.parts ) + sfx )
 
 def build_commands_dict( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
     tex_program,svg_converter,svg_crop = build_commands( tex_program, svg_converter, use_xetex, use_dvi, crop, nexec)
@@ -257,50 +247,45 @@ def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=Fa
     '''
 svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
-    working_dir = get_working_dir(working_dir)
-    if keep_file is not None:
-        keep_file   = os.path.join( os.getcwd(), keep_file )
+    ##EXA working_dir = get_working_dir(working_dir)
+    working_dir = get_wd(working_dir, root=None, add_itikz=working_dir is None)
 
     src_hash = md5(src.encode()).hexdigest()
-    output_path = prefix + src_hash
-    if working_dir is not None:
-        output_path = os.path.join(working_dir, output_path)
-    svg_path = output_path + ".svg"
-    tex_path = output_path + ".tex"
+    output_prefix  =  prefix +src_hash
 
-    if debug or not os.path.exists(svg_path):
-        #tex_path = output_path + ".tex"
-        pdf_path = output_path + svg_converter[1]
-        tex_filename = os.path.basename(tex_path)
+    tex_file = working_dir / (output_prefix + '.tex')
+    pdf_file = working_dir / (output_prefix + '.pdf')
+    svg_file = working_dir / (output_prefix + '.svg')
 
+    if debug or not svg_file.exists():
         if debug:
-            print(">>>> tex file path: ", tex_path)
+            print(">>>> tex file path: ", tex_file)
             print(">>>> tex code:\n", src)
-        with open(tex_path, "w") as fp:
-            #print( "EXA ***writing to ", tex_path, "\nsrc:   ", src)
+        with open(tex_file, "w") as fp:
+            #print( "EXA ***writing to ", tex_file, "\nsrc:   ", src)
             try:
                 fp.write(src)
             except:
                 print("failed to write tex source", file=sys.stderr)
                 cleanup_artifacts(working_dir, src_hash)
                 return
-        #print("EXA file exists: ", os.path.exists(tex_path))
+        #print("EXA file exists: ", tex_file.exists() )
 
         try:
-            tex_program.append( tex_path )
+            tex_program.append( tex_file )
             if debug:
                 print(">>>> tex_PROGRAM: ", ' '.join(tex_program), working_dir)
             for _ in range(nexec-1):
                 run_subprocess(tex_program, cwd=working_dir)
             check_output(tex_program, cwd=working_dir)
 
-            svg_program = svg_converter[0] + [pdf_path, svg_path]
+            svg_program = svg_converter[0] + [pdf_file, svg_file]
             if debug:
                 print(">>>> svg_PROGRAM: ", ' '.join(svg_program))
             check_output(svg_program, cwd=working_dir)
 
             if svg_crop is not None:
-                crop_program = svg_crop + [svg_path, svg_path]
+                crop_program = svg_crop + [svg_file, svg_file]
                 if debug:
                     print(">>>> svg_crop_PROGRAM: ", ' '.join(crop_program))
                 check_output( crop_program, cwd=working_dir)
@@ -309,23 +294,28 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
             # inkscape -z -e test.png -w 1024 -h 1024 test.svg
 
             if keep_file is not None:
+                tex_keep_file = get_wf(keep_file, Path.cwd(), sfx=".tex")
+                svg_keep_file = get_wf(keep_file, Path.cwd(), sfx=".svg")
+
                 try:
                     if debug:
-                        print(">>>> Save Files: ", ' '.join(["cp", tex_path, keep_file+'.tex']))
-                        print("                 ", ' '.join(["cp", svg_path, keep_file+'.svg']))
-                    shutil_copy( tex_path, keep_file+'.tex' )
-                    shutil_copy( svg_path, keep_file+'.svg' )
+                        print(">>>> Save Files: ", ' '.join(["cp", tex_file, tex_keep_file]))
+                        print("                 ", ' '.join(["cp", svg_file, svg_keep_file]))
+                    shutil_copy( tex_file, tex_keep_file )
+                    shutil_copy( svg_file, svg_keep_file )
                 except:
                     print( "Could not copy files")
 
         except CalledProcessError as e:
             if keep_file is not None:
+                tex_keep_file = get_wf(keep_file, Path.cwd(), sfx=".tex")
+                svg_keep_file = get_wf(keep_file, Path.cwd(), sfx=".svg")
                 try:
                     if debug:
-                        print(">>>> Save Files: ", ' '.join(["cp", tex_path, keep_file+'.tex']))
-                        print("                 ", ' '.join(["cp", svg_path, keep_file+'.svg']))
-                    shutil_copy( tex_path, keep_file+'.tex' )
-                    shutil_copy( svg_path, keep_file+'.svg' )
+                        print(">>>> Save Files: ", ' '.join(["cp", tex_file, tex_keep_file]))
+                        print("                 ", ' '.join(["cp", svg_file, svg_keep_file]))
+                    shutil_copy( tex_file, tex_keep_file )
+                    shutil_copy( svg_file, svg_keep_file )
                 except:
                     print( "Could not copy files")
 
@@ -338,36 +328,32 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
             print(err_msg, file=sys.stderr)
             return
 
-        cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
+        cleanup_artifacts(working_dir, src_hash, svg_file, tex_file)
 
-    return tex_path,svg_path
+    return tex_file,svg_file
 
 def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
 svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
 
-    tex_path,svg_path = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+    tex_file,svg_file = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
 
-    with open(svg_path, "r") as fp:
+    with open(svg_file, "r") as fp:
         return fp.read()
 
 def cleanup_artifacts(working_dir, src_hash, *retaining):
-    glob = "*{}*".format(src_hash)
-
-    for file_name in fnmatch.filter(os.listdir(working_dir), glob):
-        file_path = os.path.join(working_dir or '', file_name)
-        #print("EXA CLEANUP: remove file: ", file_path, " <<", retaining )
-        if file_path not in retaining:
-            os.unlink(file_path)
-
+    files = working_dir.glob(f'**/*{src_hash}*')
+    for f in files:
+        if f not in retaining:
+            f.unlink()
 
 def load_and_interpolate_jinja2(src, ns):
     # The FileSystemLoader should operate in the current working directory.
     # By assumption, extended jinja templates aren't temporary files --
     # the user wrote them by hand. They are part of code you would want in
     # your repository!
-    fs_loader = jinja2.FileSystemLoader(os.getcwd())
+    fs_loader = jinja2.FileSystemLoader(Path.cwd())
     tmpl_env = jinja2.Environment(loader=fs_loader)
 
     # The final template -- the one that may extend a custom template --
@@ -437,7 +423,8 @@ class TikZMagics(Magics):
         tex_program,svg_converter,svg_crop =  build_commands( args.tex_program, [["pdf2svg"],".pdf"], args.use_xetex, args.use_dvi, args.crop, nexec)
 
         #print("EXA **** working dir<<<<", get_cwd(args), ">>>>")
-        svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
+        working_dir = None if args.temp_dir == False else args.temp_dir
+        svg = fetch_or_compile_svg(src, args.file_prefix, working_dir,
                                    args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec, args.keep_file)
 
         if svg is None:
