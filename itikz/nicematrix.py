@@ -1,6 +1,7 @@
 import numpy as np
 import sympy as sym
 import jinja2
+import itikz
 
 extension = r'''
 \ExplSyntaxOn
@@ -846,7 +847,12 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
 
     m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension )
 
-    return m, m_code
+    h = itikz.fetch_or_compile_svg(
+        m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
+        **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
+        nexec=1, keep_file=keep_file )
+
+    return h, m
 
 # ==================================================================================================
 # New Examples

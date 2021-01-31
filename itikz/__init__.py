@@ -272,20 +272,20 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
         #print("EXA file exists: ", tex_file.exists() )
 
         try:
-            tex_program.append( tex_file )
+            tex_program.append( str(tex_file) )
             if debug:
                 print(">>>> tex_PROGRAM: ", ' '.join(tex_program), working_dir)
             for _ in range(nexec-1):
                 run_subprocess(tex_program, cwd=working_dir)
             check_output(tex_program, cwd=working_dir)
 
-            svg_program = svg_converter[0] + [pdf_file, svg_file]
+            svg_program = svg_converter[0] + [str(pdf_file), str(svg_file)]
             if debug:
                 print(">>>> svg_PROGRAM: ", ' '.join(svg_program))
             check_output(svg_program, cwd=working_dir)
 
             if svg_crop is not None:
-                crop_program = svg_crop + [svg_file, svg_file]
+                crop_program = svg_crop + [str(svg_file), str(svg_file)]
                 if debug:
                     print(">>>> svg_crop_PROGRAM: ", ' '.join(crop_program))
                 check_output( crop_program, cwd=working_dir)
@@ -299,8 +299,8 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
 
                 try:
                     if debug:
-                        print(">>>> Save Files: ", ' '.join(["cp", tex_file, tex_keep_file]))
-                        print("                 ", ' '.join(["cp", svg_file, svg_keep_file]))
+                        print(">>>> Save Files: ", ' '.join(["cp", str(tex_file), str(tex_keep_file)]))
+                        print("                 ", ' '.join(["cp", str(svg_file), str(svg_keep_file)]))
                     shutil_copy( tex_file, tex_keep_file )
                     shutil_copy( svg_file, svg_keep_file )
                 except:
@@ -312,8 +312,8 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
                 svg_keep_file = get_wf(keep_file, Path.cwd(), sfx=".svg")
                 try:
                     if debug:
-                        print(">>>> Save Files: ", ' '.join(["cp", tex_file, tex_keep_file]))
-                        print("                 ", ' '.join(["cp", svg_file, svg_keep_file]))
+                        print(">>>> Save Files: ", ' '.join(["cp", str(tex_file), str(tex_keep_file)]))
+                        print("                 ", ' '.join(["cp", str(svg_file), str(svg_keep_file)]))
                     shutil_copy( tex_file, tex_keep_file )
                     shutil_copy( svg_file, svg_keep_file )
                 except:
