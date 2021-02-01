@@ -142,8 +142,9 @@ def parse_args(line):
 
     return parser, parser.parse_args(shlex.split(line))
 
-# TODO: Replace get_working_dir etc routines with these
+# ==========================================================================
 def get_wd(s, root=None, add_itikz=True ):
+    '''build the working directory'''
     if root is None:
         tmp = os.environ.get( 'ITIKZ_TEMP_DIR' )
         if not tmp:
@@ -172,7 +173,12 @@ def get_wd(s, root=None, add_itikz=True ):
     return d
 
 def get_wf(s, root, sfx='.tex'):
+    '''construct the full path name of a file with suffix s'''
     s = Path(s)
+    p = s.parts
+    if len(p) > 1:
+        r = get_wd(s.parent, root, add_itikz=False)
+        return r / (s.name + sfx )
     if s.is_absolute():
         return root / s.parent / (s.name + sfx)
     return root / ( "/".join( s.parts ) + sfx )
