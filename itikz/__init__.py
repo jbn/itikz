@@ -160,6 +160,7 @@ def get_wd(s, root=None, add_itikz=True ):
     if s is None:
         if add_itikz:
             root = root / 'itikz'
+        return.mkdir(parents=True, exist_ok=True)
         return root
 
     s      = Path(s)
