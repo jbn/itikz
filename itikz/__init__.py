@@ -145,6 +145,8 @@ def parse_args(line):
 # ==========================================================================
 def get_wd(s, root=None, add_itikz=True ):
     '''build the working directory'''
+    if isinstance(root, bool):
+        root = None
     if root is None:
         tmp = os.environ.get( 'ITIKZ_TEMP_DIR' )
         if not tmp:
@@ -152,6 +154,9 @@ def get_wd(s, root=None, add_itikz=True ):
             root = Path("/tmp" if platform.system() == "Darwin" else tempfile.gettempdir())
         else:
             root = Path(tmp)
+    if isinstance(s, bool):
+        s = None
+
     if s is None:
         if add_itikz:
             root = root / 'itikz'

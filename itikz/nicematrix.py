@@ -348,6 +348,7 @@ GE_TEMPLATE = r'''
 %\usepackage{standalone}
 
 %\usepackage[french]{babel}
+\usepackage{mathtools}
 \usepackage{xltxtra}
 %\usepackage{xcolor}
 \usepackage{nicematrix,tikz}
@@ -781,11 +782,12 @@ class MatrixGridLayout:
                 pivot_locs     = [],
                 txt_with_locs  = self.txt_with_locs)
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
+def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False ):
     box_decorator         = "\\boxed<{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bf_decorator          = "\\mathbf<{a}>"
+    rlap_decorator        = "\\mathrlap<{a}>"
 
     x = '{a}'
     if bf is not None:
@@ -796,6 +798,9 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None ):
         x = color_decorator.format(a=x, text_color= text_color, bg_color=text_bg)
     elif text_color != 'black':
         x = txt_color_decorator.format( color=text_color, a=x)
+    if move_right:
+        x = rlap_decorator.format(a=x)
+
     x = x.replace('<','{{').replace('>','}}')
 
     return lambda a: x.format(a=a)
