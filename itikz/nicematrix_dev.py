@@ -43,8 +43,8 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
     \end{scope}
 
 % --------------------------------------------------------------------------- explanatory text
-    {% for loc,txt in txt_with_locs: -%}
-        \node [right,align=left] at {{loc}}  {\qquad {{txt}} } ;
+    {% for loc,txt,c in txt_with_locs: -%}
+        \node [right,align=left,color={{c}}] at {{loc}}  {\qquad {{txt}} } ;
     {% endfor -%}
 
 % --------------------------------------------------------------------------- row echelon form path
@@ -372,7 +372,7 @@ class MatrixGridLayout:
             self.array_names = array_names
 
 
-    def nm_text(self, txt_list):
+    def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
         assert( self.extra_cols[-1] != 0 )
 
@@ -382,7 +382,7 @@ class MatrixGridLayout:
             A_shape   = self.array_shape[g][self.nGridCols-1]
 
             first_row = self.cs_mat_row_height[g] + self.cs_extra_rows[g] + (self.mat_row_height[g] - A_shape[0])+1
-            txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt) )
+            txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension ):
@@ -436,6 +436,34 @@ def str_rep_from_mats( A, b, formater=repr ):
     sb = np.array(b).reshape(-1,1)
     return np.hstack( [sA, sb] )
 # ================================================================================================================================
+def mk_ge_names(n, lhs='E', rhs=['A','b']):
+    '''utility to generate array names for ge'''
+    names = np.full( shape=(n,2),fill_value='', dtype=object)
+
+    def pe(i):
+        return ' '.join([f' {lhs}_{k}' for k in range(i,0,-1)])
+    def pa(i,e_prod):
+        return r' \mid '.join( [e_prod+' '+k for k in rhs ])
+
+    for i in range(n):
+        names[i,0] = f'{lhs}_{i}'
+        e_prod = pe(i)
+        names[i,1] = pa(i,e_prod)
+
+    if len(rhs) > 1:
+        for i in range(n):
+            names[i,1] = r'\left( '+ names[i,1] + r' \right)'
+
+    for i in range(n):
+        for j in range(2):
+            names[i,j] = r'\mathbf{ ' + names[i,j] + ' }'
+
+    terms = [ [(0,1),'ar', '$' + names[0,1] + '$']]
+    for i in range(1,n):
+        terms.append( [(i,0), 'al', '$' + names[i,0] + '$'])
+        terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
+    return terms
+# --------------------------------------------------------------------------------------------------------------------------------
 def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, array_names=None, tmp_dir=None, keep_file=None):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
@@ -478,8 +506,13 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
         m.add_row_below(m.nGridRows-1,1,typ,           formater=lambda a: a )
         m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
 
-    m.nm_submatrix_locs('A',color='blue',name_specs=array_names) # this defines the submatrices (the matrix delimiters)
-    m.tex_repr()                                            # converts the array of TeX entries into strings with separators and spacers
+    if array_names is not None:
+        name_specs = mk_ge_names( m.nGridRows, *array_names )
+    else:
+        name_specs = None
+
+    m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
+    m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
 
     m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension )
 
