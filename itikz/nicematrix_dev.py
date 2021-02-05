@@ -16,11 +16,13 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 
 \usepackage{mathtools}
 \usepackage{xltxtra}
+\usepackage{pdflscape}
 \usepackage{devNicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}
+\begin{landscape}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}
 % ============================================================================ NiceArray
@@ -50,7 +52,7 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 % --------------------------------------------------------------------------- row echelon form path
 \end{tikzpicture}
 \end{NiceArray}$
-
+\end{landscape}
 \end{document}
 '''
 # ================================================================================================================================
