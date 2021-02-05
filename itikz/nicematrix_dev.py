@@ -397,12 +397,13 @@ class MatrixGridLayout:
                 pivot_locs     = [],
                 txt_with_locs  = self.txt_with_locs)
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False ):
+def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
     box_decorator         = "\\boxed<{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bf_decorator          = "\\mathbf<{a}>"
     rlap_decorator        = "\\mathrlap<{a}>"
+    delim_decorator       = "<{delim}{a}{delim}>"
 
     x = '{a}'
     if bf is not None:
@@ -415,6 +416,8 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_
         x = txt_color_decorator.format( color=text_color, a=x)
     if move_right:
         x = rlap_decorator.format(a=x)
+    if delim is not None:
+        x = delim_decorator.format( delim=delim, a=x )
 
     x = x.replace('<','{{').replace('>','}}')
 
@@ -480,6 +483,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
     partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+
     m.array_format_string_list( partitions=partitions )
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
 
@@ -524,81 +528,54 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     return h, m
 
 # ================================================================================================================================
-def qr_layout(A_,W_,formater=sym.latex):
-    A=sym.Matrix(A_);W=sym.Matrix(W_)
-    WtW  = W.T @ W
-    WtA  = W.T @ A
-    S    = WtW**(-1)
-    for i in range(S.shape[0]):
-        S[i,i]=sym.sqrt(S[i,i])
+def qr(matrices, formater=repr, array_names=True, tmp_dir=None, keep_file=None):
+    m = nM.MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
 
-    Qt = S*W.T
-    R  = S*WtA
+    m.array_format_string_list()
+    m.array_of_tex_entries(formater=formater)
 
-    def mk_nones( l ):
-        return '&'.join( np.repeat(" ",l+1))+"  "
-    extra = " & "
+    brown    = nM.make_decorator(text_color='brown', bf=True )
+    def qr_dec_known_zeros( WtA, WtW ):
+        l_WtA = [(1,2), [(i,j) for i in range(WtA.shape[0]) for j in range(WtA.shape[0]) if i >  j ]]
+        l_WtW = [(1,3), [(i,j) for i in range(WtW.shape[0]) for j in range(WtW.shape[0]) if i != j ]]
+        return  [l_WtA, l_WtW]
 
-    cS = 1; cWt = cS+S.shape[1]; cA=cWt+A.shape[0]; cW=cA+A.shape[1]; cEnd=cW+W.shape[1]
-    r1 = 1; r2  = r1+A.shape[0]; r3= r2+W.shape[1]; rEnd=r3+W.shape[1]
+    for spec in qr_dec_known_zeros(WtA, WtW):
+        #[ [(1,2), [(1,0),(2,0),(2,1)]], [(1,3), [(1,0),(2,0),(2,1), (0,1),(0,2),(1,2)]] ]:
+        m.decorate_tex_entries( *spec[0], brown, entries=spec[1] )
 
-    mat_fmt = f'{{*{S.shape[1]}r@{{\qquad\ }}*{A.shape[0]}r@{{\qquad\ }}*{A.shape[1]}rI*{W.shape[1]}r@{{\qquad\;\;}}r}}'
+    red      = nM.make_decorator(text_color='red',  bf=True)
+    red_rgt  = nM.make_decorator(text_color='red',  bf=True, move_right=True)
+    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(3)] + [red(f'w_{i+1}') for i in range(3)], formater= lambda a: a )
+    m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(3)], formater= lambda a: a )
 
-    #sep = "% -----------------------------------------------------------------------------\n"
-    #display(sym.BlockMatrix([A,W]))
-    def mk_l1():
-        l1_nones = mk_nones(S.shape[1]+W.shape[0])
-        s = []
-        for i in range(A.shape[0]):
-            s.append( l1_nones + " & ".join( map(formater, A[i,:]) ) + " &   "
-                               + " & ".join( map(formater, W[i,:]) ) + extra )
-        startA = S.shape[1]+A.shape[0]+1; endA=A.shape[0]
-        submatrix_locs = [f'{{{r1}-{cA}}}{{{r2-1}-{cEnd-1}}}']
-        return s, submatrix_locs
+    if array_names:
+        dec = nM.make_decorator(bf=True, delim='$')
+        m.nm_submatrix_locs( 'QR', color='blue', name_specs=[
+            [(0,2), 'al', dec('A')],
+            [(0,3), 'ar', dec('W')],
+            # ----------------------
+            [(1,1), 'al', dec('W^t')],
+            [(1,2), 'al', dec('W^t A')],
+            [(1,3), 'ar', dec('W^t W')],
+            # ----------------------
+            [(2,0), 'al', dec(r'S = \left( W^t W \right)^{-\tfrac{1}{2}}')],
+            [(2,1), 'br', dec(r'Q^t = S W^t')],
+            [(2,2), 'br', dec('R = S W^t A')]
+        ])
+    else:
+        m.nm_submatrix_locs()
 
-    #display(sym.BlockMatrix([W.T,WtA,WtW]))
-    def mk_l2():
-        l2_nones = mk_nones(S.shape[1])
-        s = []
-        for i in range(W.shape[1]):
-            s.append( l2_nones + " & ".join( map(formater, W[:,i] )  )  + " &   "
-                               + " & ".join( map(formater, WtA[i,:]) )  + " &   "
-                               + " & ".join( map(formater, WtW[i,:]) ) + extra
-            )
-        submatrix_locs = [f'{{{r2}-{cWt}}}{{{r3-1}-{cA-1}}}',
-                          f'{{{r2}-{cA}}}{{{r3-1}-{cEnd-1}}}'
-                         ]
-        return s, submatrix_locs
+    m.tex_repr( blockseps = r'\noalign{\vskip3mm} ')
 
-    #display(sym.BlockMatrix([S,Qt,R]))
-    def mk_l3():
-        l3_nones = mk_nones(W.shape[1])
-        s = []
-        for i in range(S.shape[0]):
-            s.append( " & ".join( map(formater, S[i,:] )  )  + " &   "
-                    + " & ".join( map(formater, Qt[i,:]) )  + " &   "
-                    + " & ".join( map(formater, R[i,:]) )
-                    + l3_nones + extra
-            )
-        submatrix_locs = [f'{{{r3}-{cS}}}{{{rEnd-1}-{cWt-1}}}',
-                          f'{{{r3}-{cWt}}}{{{rEnd-1}-{cA-1}}}',
-                          f'{{{r3}-{cA}}}{{{rEnd-1}-{cEnd-1}}}'
-                         ]
-        return s,submatrix_locs
+    m_code = m.nm_latexdoc( preamble = nM.preamble + r" \NiceMatrixOptions{cell-space-limits = 2pt}" )
 
-    layer_1, submatrix_locs_1 = mk_l1()
-    layer_2, submatrix_locs_2 = mk_l2()
-    layer_3, submatrix_locs_3 = mk_l3()
 
-    layers = [layer_1, layer_2, layer_3]
-
-    s = []
-    for l in layers:
-        s.append( " \\\\ \n".join(l))
-
-    return " \\\\  \\noalign{\\vskip2mm} \n".join(s),\
-           mat_fmt,\
-           submatrix_locs_1+submatrix_locs_2+submatrix_locs_3
+    h = itikz.fetch_or_compile_svg(
+            m_code, prefix='qr_', working_dir=tmp_dir, debug=False,
+            **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
+            nexec=1, keep_file=keep_file )
+    return h, m
 
 # ==================================================================================================
 # New Examples
