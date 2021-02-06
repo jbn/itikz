@@ -19,7 +19,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage{xltxtra}
 \usepackage{pdflscape}
 \usepackage{graphicx}
-\usepackage{devNicematrix,tikz}
+\usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
