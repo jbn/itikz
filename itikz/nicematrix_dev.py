@@ -13,16 +13,21 @@ preamble = r'''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \pagestyle{empty}
+%\usepackage[paperheight=9in,paperwidth=56in,top=1in,bottom=1in,right=1in,left=1in,heightrounded,showframe]{geometry}
 
 \usepackage{mathtools}
 \usepackage{xltxtra}
 \usepackage{pdflscape}
+\usepackage{graphicx}
 \usepackage{devNicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}
 \begin{landscape}
+{% if fig_scale %}
+{{fig_scale}}
+{% endif %}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}
 % ============================================================================ NiceArray
@@ -52,6 +57,9 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 % --------------------------------------------------------------------------- row echelon form path
 \end{tikzpicture}
 \end{NiceArray}$
+{% if fig_scale %}
+}
+{% endif %}
 \end{landscape}
 \end{document}
 '''
@@ -387,9 +395,12 @@ class MatrixGridLayout:
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
-    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension ):
+    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
+        if fig_scale is not None:
+            fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
         return jinja2.Template( template ).render( \
                 preamble       = preamble,
+                fig_scale      = fig_scale,
                 extension      = extension,
                 mat_rep        = '\n'.join( self.tex_list ),
                 mat_format     = '{'+self.format+'}',
@@ -397,7 +408,8 @@ class MatrixGridLayout:
                 submatrix_locs = self.locs,
                 submatrix_names= self.array_names,
                 pivot_locs     = [],
-                txt_with_locs  = self.txt_with_locs)
+                txt_with_locs  = self.txt_with_locs
+        )
 # -----------------------------------------------------------------------------------------------------
 def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
     box_decorator         = "\\boxed<{a}>"
@@ -469,7 +481,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b']):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, array_names=None, tmp_dir=None, keep_file=None):
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, array_names=None, fig_scale=None, tmp_dir=None, keep_file=None):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -520,7 +532,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
     m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
 
-    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension )
+    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=fig_scale )
 
     h = itikz.fetch_or_compile_svg(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
@@ -530,29 +542,29 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     return h, m
 
 # ================================================================================================================================
-def qr(matrices, formater=repr, array_names=True, tmp_dir=None, keep_file=None):
-    m = nM.MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
+def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+    m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
 
     m.array_format_string_list()
     m.array_of_tex_entries(formater=formater)
 
-    brown    = nM.make_decorator(text_color='brown', bf=True )
+    brown    = make_decorator(text_color='brown', bf=True )
     def qr_dec_known_zeros( WtA, WtW ):
         l_WtA = [(1,2), [(i,j) for i in range(WtA.shape[0]) for j in range(WtA.shape[0]) if i >  j ]]
         l_WtW = [(1,3), [(i,j) for i in range(WtW.shape[0]) for j in range(WtW.shape[0]) if i != j ]]
         return  [l_WtA, l_WtW]
 
-    for spec in qr_dec_known_zeros(WtA, WtW):
+    for spec in qr_dec_known_zeros( matrices[1][2], matrices[1][3]):
         #[ [(1,2), [(1,0),(2,0),(2,1)]], [(1,3), [(1,0),(2,0),(2,1), (0,1),(0,2),(1,2)]] ]:
         m.decorate_tex_entries( *spec[0], brown, entries=spec[1] )
 
-    red      = nM.make_decorator(text_color='red',  bf=True)
-    red_rgt  = nM.make_decorator(text_color='red',  bf=True, move_right=True)
+    red      = make_decorator(text_color='red',  bf=True)
+    red_rgt  = make_decorator(text_color='red',  bf=True, move_right=True)
     m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(3)] + [red(f'w_{i+1}') for i in range(3)], formater= lambda a: a )
     m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(3)], formater= lambda a: a )
 
     if array_names:
-        dec = nM.make_decorator(bf=True, delim='$')
+        dec = make_decorator(bf=True, delim='$')
         m.nm_submatrix_locs( 'QR', color='blue', name_specs=[
             [(0,2), 'al', dec('A')],
             [(0,3), 'ar', dec('W')],
@@ -570,7 +582,7 @@ def qr(matrices, formater=repr, array_names=True, tmp_dir=None, keep_file=None):
 
     m.tex_repr( blockseps = r'\noalign{\vskip3mm} ')
 
-    m_code = m.nm_latexdoc( preamble = nM.preamble + r" \NiceMatrixOptions{cell-space-limits = 2pt}" )
+    m_code = m.nm_latexdoc( preamble = preamble + r" \NiceMatrixOptions{cell-space-limits = 2pt}", fig_scale=fig_scale )
 
 
     h = itikz.fetch_or_compile_svg(
