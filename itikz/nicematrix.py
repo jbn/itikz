@@ -3,370 +3,45 @@ import sympy as sym
 import jinja2
 import itikz
 
+# ================================================================================================================================
 extension = r'''
-\ExplSyntaxOn
-\makeatletter
-
-
-\dim_new:N \l__submatrix_extra_height_dim
-\dim_new:N \l__submatrix_left_xshift_dim
-\dim_new:N \l__submatrix_right_xshift_dim
-
-\keys_define:nn { SubMatrix }
-  {
-    extra-height .dim_set:N = \l__submatrix_extra_height_dim ,
-    extra-height .value_required:n = true ,
-    left-xshift .dim_set:N = \l__submatrix_left_xshift_dim ,
-    left-xshift .value_required:n = true ,
-    right-xshift .dim_set:N = \l__submatrix_right_xshift_dim ,
-    right-xshift .value_required:n = true ,
-  }
-
-\NewDocumentCommand { \SubMatrixOptions } { m }
-  { \keys_set:nn { SubMatrix } { #1 } }
-
-
-\NewDocumentCommand \SubMatrix { m m m m ! O { } }
-  {
-    \keys_set:nn { SubMatrix } { #5 }
-    \begin { tikzpicture }
-      [
-        outer~sep =0 pt ,
-        inner~sep = 0 pt ,
-        draw = none ,
-        fill = none ,
-      ]
-    \pgf@process
-      {
-        \pgfpointdiff
-          { \pgfpointanchor { nm - \NiceMatrixLastEnv - #3 - medium } { south } }
-          { \pgfpointanchor { nm - \NiceMatrixLastEnv - #2 - medium } { north } }
-      }
-    \dim_set_eq:NN \l_tmpa_dim \pgf@y
-    \dim_add:Nn \l_tmpa_dim \l__submatrix_extra_height_dim
-    \node
-      at
-      (
-        [ xshift = -0.8 mm - \l__submatrix_left_xshift_dim ]
-        $ (#2-medium.north~west) ! .5 ! (#3-medium.south~east-|#2-medium.north~west) $
-      )
-      {
-        \nullfont
-        \c_math_toggle_token
-        \left #1
-        \vcenter { \nullfont \hrule height .5 \l_tmpa_dim depth .5 \l_tmpa_dim width 0 pt }
-        \right .
-        \c_math_toggle_token
-      } ;
-    \node
-      at
-      (
-        [ xshift = 0.8 mm + \l__submatrix_right_xshift_dim ]
-        $ (#2-medium.north~west-|#3-medium.south~east) ! .5 ! (#3-medium.south~east) $
-      )
-      {
-        \nullfont
-        \c_math_toggle_token
-        \left .
-        \vcenter { \nullfont \hrule height .5 \l_tmpa_dim depth .5 \l_tmpa_dim width 0 pt }
-        \right #4
-        \c_math_toggle_token
-      } ;
-    \end { tikzpicture }
-  }
-
-\makeatother
-\ExplSyntaxOff
 '''
 # -----------------------------------------------------------------
 preamble = r'''
 \newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
-\SubMatrixOptions{extra-height = 1mm}
 '''
 # =================================================================
-def str_rep_from_mat( A, formater=repr):
-    '''str_rep_from_mat( A, formater=repr)
-    convert matrix A to a string using formater
-    '''
-    M,N=A.shape
-    return np.array( [[formater(A[i,j]) for j in range(N)] for i in range(M)] )
-
-def str_rep_from_mats( A, b, formater=repr ):
-    '''str_rep_from_mats( A, b, formater=repr)
-    convert matrix A and vector b to a string using formater, return the augmented matrix
-    '''
-    sA = str_rep_from_mat(A, formater)
-    sb = np.array(b).reshape(-1,1)
-    return np.hstack( [sA, sb] )
-# =================================================================
-def tex_from_mat( A, front=0, back=0, formater=repr):
-    '''print latex representation of array A, with "front" and "back" empty slots'''
-    M,N=A.shape
-    tf = ' '.join([ ' & ' for _ in range(front)])
-    tb = ' '.join([ ' & ' for _ in range(back)])
-    tbe = tb + ' \\\\ \n'
-
-    t  = tbe.join( [ tf + ' & '.join( [ formater(x) for x in A[i,:] ]  ) for i in range(M)] ) + tb
-    return t
-
-# -----------------------------------------------------------------
-def path_format(i,j):
-    return "(row-{i}-|col-{j})".format(i=i,j=j),"(row-{i}-|col-{j})".format(i=i+1,j=j)
-# -----------------------------------------------------------------
-def loc_format(x,parens=('(', ')') ):
-    '''loc_format(x,parens=('(', ')') )
-    location format of a node (i-j) or {i-j}
-    '''
-    return '{s}{i}-{j}{e}'.format(s=parens[0],i=x[0],j=x[1], e=parens[1])
-
-# -----------------------------------------------------------------
-# This is not correct if a third or further layer has a different number of rows!
-def submatrix_locations(layers, which_layers=None, row_offset=1, col_offset=1, rep=lambda x,y:loc_format((x,y),('{','}'))):
-    '''submatrix_locations(n_layers, shape, offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}')))
-    layers:         vertical stack of matrices
-    which_layers:   iterable over layers. (default = all)
-    shape:          (M,N) of each matrix
-    row_offset:     positions to skip from the top
-    col_offset:     positions to skip from the left
-    start_at_layer: first layer for which to add a submatrix
-    rep:            formater for a corner of the submatrix
-    '''
-
-    row_sizes = np.array([0,layers[0][1].shape[0]] + [layer[0].shape[0] for layer in layers[1:]])
-    col_sizes = np.array([0]+[ m.shape[1] for m in layers[1]])
-
-    row_start = np.cumsum( row_sizes )
-    col_start = np.cumsum( col_sizes )
-
-    num_matrices_in_layer = len( layers[1])
-    if which_layers is None: which_layers = range(0, len(layers))
-
-    sub_matrices = []
-    for lc in range(num_matrices_in_layer):
-        for lr in which_layers:
-            sub_matrices.append( rep(row_start[lr]+row_offset,col_start[lc]+col_offset)+
-                                 rep(row_start[lr+1]+row_offset-1,col_start[lc+1]+col_offset-1) )
-
-    return sub_matrices[1:]
-# -----------------------------------------------------------------
-def old_submatrix_locations(n_layers, shape, row_offset=1, col_offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}'))):
-    '''old_submatrix_locations(n_layers, shape, offset=1, start_at_layer=0, rep=lambda x,y:loc_format((x,y),('{','}')))
-    n_layers:       number of layers
-    shape:          (M,N) of each matrix
-    row_offset:     positions to skip from the top
-    col_offset:     positions to skip from the left
-    start_at_layer: first layer for which to add a submatrix
-    rep:            formater for a corner of the submatrix
-    '''
-    M,N = shape
-    return [(rep(row_offset+i*M,col_offset)+rep(row_offset+(i+1)*M-1,col_offset+N-1)) for i in range(start_at_layer,n_layers)]
-
-# -----------------------------------------------------------------
-def one_pivot_locations( loc, n_layers=1, M=0, row_offset=0, col_offset=0, c=("blue","red"), rep=lambda x,y:loc_format((x,y)) ):
-    ''' add pivots in the vertical stack underneath the current pivot
-    loc:         are the indices of the first location, colored c[1]
-    n_layers:    is the number of matrix layers in the stack
-    M:           is the number of rows of a matrix in the stack
-    '''
-    i,j = loc
-    i   = i + row_offset
-    j   = j + col_offset
-
-    p = [(rep(i,j),c[1])]
-    for l in range(1,n_layers):
-        p.append( (rep(l*M+i,j), c[0]))
-
-    return p
-
-# -----------------------------------------------------------------
-def path_locations( locs, n_layers=1, M=0, N=0, row_offset=0, col_offset=0, rep=path_format ):
-    '''construct all actual pivot locations in a matrix stack'''
-    p = []
-    l = len(locs)-1
-    for i,loc in enumerate(locs):
-        if loc is not None:
-            i,j = loc
-            i   = l*M+i + row_offset
-            j   = j + col_offset
-
-            p_add = rep(i,j)
-            p.extend( p_add )
-
-    p.append( rep(n_layers*M+1, N+col_offset)[0] )
-    return p
-# -----------------------------------------------------------------
-def pivot_locations( locs, n_layers=1, M=0, row_offset=0, col_offset=0, c=("blue", "red"), rep=lambda x,y:loc_format((x,y)) ):
-    '''construct all actual pivot locations in a matrix stack'''
-    p = []
-    for i,loc in enumerate(locs):
-        if loc is not None:
-            p = p + ( one_pivot_locations((loc[0]+i*M,loc[1]), n_layers-i, M, row_offset, col_offset, c, rep))
-    return p
-# -----------------------------------------------------------------
-def ge_int_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False ):
-    n_layers = len(layer_defs)
-    Ma,Na    = layer_defs[0][1].shape   # matrix sizes
-    Me,Ne    = Ma,Ma                    #
-
-    sep            = '% --------------------------------------------\n'
-    mat_rep        = sep + tex_from_mat( layer_defs[0][1], front=Me, back=1, formater=(lambda x: f'{x:.0f}'))
-    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
-
-    for layer in layer_defs[1:]:
-        mat_rep        += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
-                 + tex_from_mat( np.hstack(layer), back=1, formater=lambda x: f'{x:.0f}')
-        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
-    submatrix_locs = submatrix_locations(layer_defs, row_offset=1, col_offset=1)
-
-    if pivots is not None and not decorate:
-        pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
-    else:
-        pivot_locs = []
-
-    if decorate:
-        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
-    else:
-        path_corners = []
-
-    if txt is not None:
-        txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
-    else:
-        txt_with_locs = []
-
-    if Nrhs > 0:
-        Na1 = Na - Nrhs
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na1}rI*{Nrhs}r@{{\qquad\;\;}}r}}'
-    else:
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}rr@{{\qquad\;\;}}r}}'
-
-    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
-
-# -----------------------------------------------------------------
-def convert_layer_defs( layer_defs ):
-    '''convert layer_defs to [[None,A],[],[],[]]'''
-    n_layers = len(layer_defs)
-    A = np.array( layer_defs[0][1] )
-    return [[None, A]] + [np.hstack(layer) for layer in layer_defs[1:]]
-
-# -----------------------------------------------------------------
-def ge_layout_from_stacked( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
-    n_layers = len(layer_defs)
-    A = np.array( layer_defs[0][1] )
-
-    Ma,Na    = A.shape                  # matrix sizes
-    Me,Ne    = Ma,Ma                    #
-
-    sep            = '% --------------------------------------------\n'
-    mat_rep        = sep + tex_from_mat( A, front=Me, back=1, formater=formater)
-
-    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
-    submatrix_locs = submatrix_locations(layer_defs, which_layers=range(1,n_layers), row_offset=1, col_offset=1)
-
-    for layer in layer_defs[1:]:
-        M = np.array(layer)
-        mat_rep  += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
-                 + tex_from_mat( M, back=1, formater=formater)
-        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
-
-    if pivots is not None and not decorate:
-        pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
-    else:
-        pivot_locs = []
-
-    if decorate:
-        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
-    else:
-        path_corners = []
-
-    if txt is not None:
-        txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
-    else:
-        txt_with_locs = []
-
-    if Nrhs > 0:
-        Na1 = Na - Nrhs
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na1}rI*{Nrhs}r@{{\qquad\;\;}}r}}'
-    else:
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}r@{{\qquad\;\;}}r}}'
-
-    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
-# -----------------------------------------------------------------
-# Needs debugging
-def new_ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
-    '''generate a ge_layout with a certain number of rhs'''
-    defs = convert_layer_defs( layer_defs )
-    return ge_layout_from_stacked( defs, Nrhs=Nrhs, pivots=pivots, txt=txt, decorate=decorate, formater=formater )
-
-# -----------------------------------------------------------------
-def ge_layout( layer_defs, Nrhs=0, pivots=None, txt=None, decorate=False, formater=repr ):
-    n_layers = len(layer_defs)
-    Ma,Na    = layer_defs[0][1].shape   # matrix sizes
-    Me,Ne    = Ma,Ma                    #
-
-    sep            = '% --------------------------------------------\n'
-    mat_rep        = sep + tex_from_mat( layer_defs[0][1], front=Me, back=1, formater=formater)
-    #submatrix_locs = old_submatrix_locations( n_layers, (Me,Ne), row_offset=1, col_offset=1, start_at_layer=1)
-
-    for layer in layer_defs[1:]:
-        mat_rep        += ' \\\\ \\noalign{\\vskip2mm} \n % ---------------------------------------------\n' \
-                 + tex_from_mat( np.hstack(layer), back=1, formater=formater)
-        #submatrix_locs += old_submatrix_locations(n_layers, (Ma,Na), row_offset=1, col_offset=1+Ne, start_at_layer=0)
-
-    submatrix_locs = submatrix_locations(layer_defs,row_offset=1, col_offset=1)
-
-
-    if pivots is not None and not decorate:
-        pivot_locs   = pivot_locations(pivots, n_layers, M=Ma, row_offset=0, col_offset=Ne)
-    else:
-        pivot_locs = []
-
-    if decorate:
-        path_corners = path_locations(pivots, n_layers, M=Ma, N=Na, row_offset=0, col_offset=Ne)
-    else:
-        path_corners = []
-
-    if txt is not None:
-        txt_with_locs = [ (f'({1+i*Ma}-{Ne+Na}.east)','\\quad '+t) for i,t in enumerate(txt) ]
-    else:
-        txt_with_locs = []
-
-    if Nrhs > 0:
-        Na1 = Na - Nrhs
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na1}rI*{Nrhs}r@{{\qquad\;\;}}r}}'
-    else:
-        mat_format = f'{{*{Ne}r@{{\qquad\ }}*{Na}r@{{\qquad\;\;}}r}}'
-
-    return mat_rep, submatrix_locs, pivot_locs, path_corners, txt_with_locs,mat_format
-
-# =================================================================
-GE_TEMPLATE = r'''
-\documentclass[notitlepage]{article}
-%\pagenumbering{gobble}
+GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \pagestyle{empty}
+%\usepackage[paperheight=9in,paperwidth=56in,top=1in,bottom=1in,right=1in,left=1in,heightrounded,showframe]{geometry}
 
-%\documentclass{standalone}
-%\usepackage{standalone}
-
-%\usepackage[french]{babel}
 \usepackage{mathtools}
 \usepackage{xltxtra}
-%\usepackage{xcolor}
-\usepackage{nicematrix,tikz}
-\usetikzlibrary{calc,fit}
-
+\usepackage{pdflscape}
+\usepackage{graphicx}
+\usepackage{devNicematrix,tikz}
+\usetikzlibrary{calc,fit,decorations.markings}
+% ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}
+\begin{landscape}
+{% if fig_scale %}
+{{fig_scale}}
+{% endif %}
+% ---------------------------------------------------------------------------- preamble
 {{preamble}}
-% ================================================================================
+% ============================================================================ NiceArray
 $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
 {{mat_rep}}
-\CodeAfter
-% ----------------------------------------- submatrix delimiters
-  \SubMatrixOptions{right-xshift=2mm, left-xshift=2mm}
+\CodeAfter[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
+% --------------------------------------------------------------------------- submatrix delimiters
     {% for loc in submatrix_locs: -%}
-          \SubMatrix({{loc}})
+          \SubMatrix({{loc[1]}})[name={{loc[0]}}]
     {% endfor -%}
-% ----------------------------------------- pivot outlines
+    {% for txt in submatrix_names: -%}
+          {{txt}}
+    {% endfor -%}
+% --------------------------------------------------------------------------- pivot outlines
 \begin{tikzpicture}
     \begin{scope}[every node/.style = draw]
     {% for loc in pivot_locs: -%}
@@ -374,101 +49,23 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
     {% endfor -%}
     \end{scope}
 
-% ----------------------------------------- explanatory text
-    {% for loc,txt in txt_with_locs: -%}
-        \node [right,align=left] at {{loc}}  {\qquad {{txt}} } ;
+% --------------------------------------------------------------------------- explanatory text
+    {% for loc,txt,c in txt_with_locs: -%}
+        \node [right,align=left,color={{c}}] at {{loc}}  {\qquad {{txt}} } ;
     {% endfor -%}
 
-%\node [right,align=left] at (14-8.east) {\quad There are no free variables.\\
-%                                        \quad We have obtained a unique solution.} ;
-
-% ----------------------------------------- row echelon form path
-
+% --------------------------------------------------------------------------- row echelon form path
 \end{tikzpicture}
 \end{NiceArray}$
-
+{% if fig_scale %}
+}
+{% endif %}
+\end{landscape}
 \end{document}
 '''
-# -----------------------------------------------------------------
-def qr_layout(A_,W_,formater=sym.latex):
-    A=sym.Matrix(A_);W=sym.Matrix(W_)
-    WtW  = W.T @ W
-    WtA  = W.T @ A
-    S    = WtW**(-1)
-    for i in range(S.shape[0]):
-        S[i,i]=sym.sqrt(S[i,i])
-
-    Qt = S*W.T
-    R  = S*WtA
-
-    def mk_nones( l ):
-        return '&'.join( np.repeat(" ",l+1))+"  "
-    extra = " & "
-
-    cS = 1; cWt = cS+S.shape[1]; cA=cWt+A.shape[0]; cW=cA+A.shape[1]; cEnd=cW+W.shape[1]
-    r1 = 1; r2  = r1+A.shape[0]; r3= r2+W.shape[1]; rEnd=r3+W.shape[1]
-
-    mat_fmt = f'{{*{S.shape[1]}r@{{\qquad\ }}*{A.shape[0]}r@{{\qquad\ }}*{A.shape[1]}rI*{W.shape[1]}r@{{\qquad\;\;}}r}}'
-
-    #sep = "% -----------------------------------------------------------------------------\n"
-    #display(sym.BlockMatrix([A,W]))
-    def mk_l1():
-        l1_nones = mk_nones(S.shape[1]+W.shape[0])
-        s = []
-        for i in range(A.shape[0]):
-            s.append( l1_nones + " & ".join( map(formater, A[i,:]) ) + " &   "
-                               + " & ".join( map(formater, W[i,:]) ) + extra )
-        startA = S.shape[1]+A.shape[0]+1; endA=A.shape[0]
-        submatrix_locs = [f'{{{r1}-{cA}}}{{{r2-1}-{cEnd-1}}}']
-        return s, submatrix_locs
-
-    #display(sym.BlockMatrix([W.T,WtA,WtW]))
-    def mk_l2():
-        l2_nones = mk_nones(S.shape[1])
-        s = []
-        for i in range(W.shape[1]):
-            s.append( l2_nones + " & ".join( map(formater, W[:,i] )  )  + " &   "
-                               + " & ".join( map(formater, WtA[i,:]) )  + " &   "
-                               + " & ".join( map(formater, WtW[i,:]) ) + extra
-            )
-        submatrix_locs = [f'{{{r2}-{cWt}}}{{{r3-1}-{cA-1}}}',
-                          f'{{{r2}-{cA}}}{{{r3-1}-{cEnd-1}}}'
-                         ]
-        return s, submatrix_locs
-
-    #display(sym.BlockMatrix([S,Qt,R]))
-    def mk_l3():
-        l3_nones = mk_nones(W.shape[1])
-        s = []
-        for i in range(S.shape[0]):
-            s.append( " & ".join( map(formater, S[i,:] )  )  + " &   "
-                    + " & ".join( map(formater, Qt[i,:]) )  + " &   "
-                    + " & ".join( map(formater, R[i,:]) )
-                    + l3_nones + extra
-            )
-        submatrix_locs = [f'{{{r3}-{cS}}}{{{rEnd-1}-{cWt-1}}}',
-                          f'{{{r3}-{cWt}}}{{{rEnd-1}-{cA-1}}}',
-                          f'{{{r3}-{cA}}}{{{rEnd-1}-{cEnd-1}}}'
-                         ]
-        return s,submatrix_locs
-
-    layer_1, submatrix_locs_1 = mk_l1()
-    layer_2, submatrix_locs_2 = mk_l2()
-    layer_3, submatrix_locs_3 = mk_l3()
-
-    layers = [layer_1, layer_2, layer_3]
-
-    s = []
-    for l in layers:
-        s.append( " \\\\ \n".join(l))
-
-    return " \\\\  \\noalign{\\vskip2mm} \n".join(s),\
-           mat_fmt,\
-           submatrix_locs_1+submatrix_locs_2+submatrix_locs_3
-
-# ========================================================================================
-# NEW: replacement for the previous formating functions
-# ========================================================================================
+# ================================================================================================================================
+# Index Computations and formating associated with Matrices layed out on a grid.
+# ================================================================================================================================
 class MatrixGridLayout:
     ''' Basic Computations of the Matrix Grid Layout and the resulting Tex Representation
         Indexing is zero-based.
@@ -508,6 +105,7 @@ class MatrixGridLayout:
         self.nGridCols        = len(self.matrices[0])
 
         self._set_shapes()
+        self.array_names      = []
 
         self.mat_row_height = [ max(map( lambda s: s[0], self.array_shape[i, :])) for i in range(self.nGridRows)]
         self.mat_col_width  = [ max(map( lambda s: s[1], self.array_shape[:, j])) for j in range(self.nGridCols)]
@@ -746,48 +344,80 @@ class MatrixGridLayout:
     #    l.append( f'(row-{i}-|col-{j})')
     #    self.row_echelon_paths.append(l)
 
-    def nm_submatrix_locs(self):
+    def nm_submatrix_locs(self, name='A', color='blue', name_specs=None ):
         '''nicematrix style location descriptors of the submatrices'''
+        # name_specs = [ spec*]; spec = [ (gM, gN), position, text ]
+
         locs = []
         for i in range(self.nGridRows):
             for j in range(self.nGridCols):
                 if self.array_shape[i,j][0] != 0:
                     tl,br,_ = self._top_left_bottom_right(i,j)
-                    locs.append( f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}" )
+                    locs.append( [ f"{name}{i}x{j}", f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}"] )
 
         self.locs = locs
 
-    def nm_text(self, txt_list):
+        if name_specs is not None:
+            array_names = []
+            ar=r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.north east) + (0.02,0.02) $) -- +(0.6cm,0.3cm)    node[COLOR, above right=-3pt]{TXT};".replace('COLOR',color)
+            al=r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.north west) + (-0.02,0.02) $) -- +(-0.6cm,0.3cm) node[COLOR, above left=-3pt] {TXT};".replace('COLOR',color)
+            a =r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.north) + (0,0) $) -- +(0cm,0.6cm) node[COLOR, above=1pt] {TXT};".replace('COLOR',color)
+
+            bl=r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.south west) + (-0.02,-0.02) $) -- +(-0.6cm,-0.3cm)  node[COLOR, below left=-3pt]{TXT};".replace('COLOR',color)
+            br=r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.south east) + (0.02,-0.02) $) -- +(0.6cm,-0.3cm)   node[COLOR, below right=-3pt]{TXT};".replace('COLOR',color)
+            b =r"\tikz \draw[<-,>=stealth,COLOR,thick] ($ (NAME.south) + (0,0) $) -- +(0cm,-0.6cm) node[COLOR, below=1pt] {TXT};".replace('COLOR',color)
+
+            for (gM,gN),pos,txt in name_specs:
+                nm = f"{name}{gM}x{gN}"
+                t  = None
+                if    pos == 'a':  t =  a.replace('NAME',nm).replace('TXT',txt)
+                elif  pos == 'al': t = al.replace('NAME',nm).replace('TXT',txt)
+                elif  pos == 'ar': t = ar.replace('NAME',nm).replace('TXT',txt)
+                elif  pos == 'b':  t =  b.replace('NAME',nm).replace('TXT',txt)
+                elif  pos == 'bl': t = bl.replace('NAME',nm).replace('TXT',txt)
+                elif  pos == 'br': t = br.replace('NAME',nm).replace('TXT',txt)
+                if t is not None:
+                    array_names.append( t )
+ 
+            self.array_names = array_names
+
+
+    def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
         assert( self.extra_cols[-1] != 0 )
 
         # find the indices of the first row in the last col (+1 for nicematrix indexing)
         txt_with_locs = []
         for (g,txt) in enumerate(txt_list):
-            #A_shape   = (self.matrices[g][self.nGridCols-1]).shape
             A_shape   = self.array_shape[g][self.nGridCols-1]
 
             first_row = self.cs_mat_row_height[g] + self.cs_extra_rows[g] + (self.mat_row_height[g] - A_shape[0])+1
-            txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt) )
+            txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
-    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension ):
+    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
+        if fig_scale is not None:
+            fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
         return jinja2.Template( template ).render( \
                 preamble       = preamble,
+                fig_scale      = fig_scale,
                 extension      = extension,
                 mat_rep        = '\n'.join( self.tex_list ),
                 mat_format     = '{'+self.format+'}',
                 mat_options    = '',
                 submatrix_locs = self.locs,
+                submatrix_names= self.array_names,
                 pivot_locs     = [],
-                txt_with_locs  = self.txt_with_locs)
+                txt_with_locs  = self.txt_with_locs
+        )
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False ):
+def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
     box_decorator         = "\\boxed<{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bf_decorator          = "\\mathbf<{a}>"
     rlap_decorator        = "\\mathrlap<{a}>"
+    delim_decorator       = "<{delim}{a}{delim}>"
 
     x = '{a}'
     if bf is not None:
@@ -800,19 +430,65 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_
         x = txt_color_decorator.format( color=text_color, a=x)
     if move_right:
         x = rlap_decorator.format(a=x)
+    if delim is not None:
+        x = delim_decorator.format( delim=delim, a=x )
 
     x = x.replace('<','{{').replace('>','}}')
 
     return lambda a: x.format(a=a)
 
-# -----------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, tmp_dir=None, keep_file=None):
-    '''basic GE layout:
+# ================================================================================================================================
+def str_rep_from_mat( A, formater=repr):
+    '''str_rep_from_mat( A, formater=repr)
+    convert matrix A to a string using formater
+    '''
+    M,N=A.shape
+    return np.array( [[formater(A[i,j]) for j in range(N)] for i in range(M)] )
+
+def str_rep_from_mats( A, b, formater=repr ):
+    '''str_rep_from_mats( A, b, formater=repr)
+    convert matrix A and vector b to a string using formater, return the augmented matrix
+    '''
+    sA = str_rep_from_mat(A, formater)
+    sb = np.array(b).reshape(-1,1)
+    return np.hstack( [sA, sb] )
+# ================================================================================================================================
+def mk_ge_names(n, lhs='E', rhs=['A','b']):
+    '''utility to generate array names for ge'''
+    names = np.full( shape=(n,2),fill_value='', dtype=object)
+
+    def pe(i):
+        return ' '.join([f' {lhs}_{k}' for k in range(i,0,-1)])
+    def pa(i,e_prod):
+        return r' \mid '.join( [e_prod+' '+k for k in rhs ])
+
+    for i in range(n):
+        names[i,0] = f'{lhs}_{i}'
+        e_prod = pe(i)
+        names[i,1] = pa(i,e_prod)
+
+    if len(rhs) > 1:
+        for i in range(n):
+            names[i,1] = r'\left( '+ names[i,1] + r' \right)'
+
+    for i in range(n):
+        for j in range(2):
+            names[i,j] = r'\mathbf{ ' + names[i,j] + ' }'
+
+    terms = [ [(0,1),'ar', '$' + names[0,1] + '$']]
+    for i in range(1,n):
+        terms.append( [(i,0), 'al', '$' + names[i,0] + '$'])
+        terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
+    return terms
+# --------------------------------------------------------------------------------------------------------------------------------
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, array_names=None, fig_scale=None, tmp_dir=None, keep_file=None):
+    '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivto or not
+    array_names:      [ spec* ], where spec=[ (gM,gN), pos, txt ], where the pos string is a,al,ar, b,bl,br (above, above left,...)
     '''
     extra_cols = None if comment_list     is None else 1
     extra_rows = None if variable_summary is None else 2
@@ -821,6 +497,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
     partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+
     m.array_format_string_list( partitions=partitions )
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
 
@@ -847,16 +524,71 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
         m.add_row_below(m.nGridRows-1,1,typ,           formater=lambda a: a )
         m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
 
-    m.nm_submatrix_locs()     # this defines the submatrices (the matrix delimiters)
-    m.tex_repr()              # converts the array of TeX entries into strings with separators and spacers
+    if array_names is not None:
+        name_specs = mk_ge_names( m.nGridRows, *array_names )
+    else:
+        name_specs = None
 
-    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension )
+    m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
+    m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
+
+    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=fig_scale )
 
     h = itikz.fetch_or_compile_svg(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
         **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
         nexec=1, keep_file=keep_file )
 
+    return h, m
+
+# ================================================================================================================================
+def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+    m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
+
+    m.array_format_string_list()
+    m.array_of_tex_entries(formater=formater)
+
+    brown    = make_decorator(text_color='brown', bf=True )
+    def qr_dec_known_zeros( WtA, WtW ):
+        l_WtA = [(1,2), [(i,j) for i in range(WtA.shape[0]) for j in range(WtA.shape[0]) if i >  j ]]
+        l_WtW = [(1,3), [(i,j) for i in range(WtW.shape[0]) for j in range(WtW.shape[0]) if i != j ]]
+        return  [l_WtA, l_WtW]
+
+    for spec in qr_dec_known_zeros( matrices[1][2], matrices[1][3]):
+        #[ [(1,2), [(1,0),(2,0),(2,1)]], [(1,3), [(1,0),(2,0),(2,1), (0,1),(0,2),(1,2)]] ]:
+        m.decorate_tex_entries( *spec[0], brown, entries=spec[1] )
+
+    red      = make_decorator(text_color='red',  bf=True)
+    red_rgt  = make_decorator(text_color='red',  bf=True, move_right=True)
+    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(3)] + [red(f'w_{i+1}') for i in range(3)], formater= lambda a: a )
+    m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(3)], formater= lambda a: a )
+
+    if array_names:
+        dec = make_decorator(bf=True, delim='$')
+        m.nm_submatrix_locs( 'QR', color='blue', name_specs=[
+            [(0,2), 'al', dec('A')],
+            [(0,3), 'ar', dec('W')],
+            # ----------------------
+            [(1,1), 'al', dec('W^t')],
+            [(1,2), 'al', dec('W^t A')],
+            [(1,3), 'ar', dec('W^t W')],
+            # ----------------------
+            [(2,0), 'al', dec(r'S = \left( W^t W \right)^{-\tfrac{1}{2}}')],
+            [(2,1), 'br', dec(r'Q^t = S W^t')],
+            [(2,2), 'br', dec('R = S W^t A')]
+        ])
+    else:
+        m.nm_submatrix_locs()
+
+    m.tex_repr( blockseps = r'\noalign{\vskip3mm} ')
+
+    m_code = m.nm_latexdoc( preamble = preamble + r" \NiceMatrixOptions{cell-space-limits = 2pt}", fig_scale=fig_scale )
+
+
+    h = itikz.fetch_or_compile_svg(
+            m_code, prefix='qr_', working_dir=tmp_dir, debug=False,
+            **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
+            nexec=1, keep_file=keep_file )
     return h, m
 
 # ==================================================================================================
