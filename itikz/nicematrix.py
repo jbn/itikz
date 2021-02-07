@@ -128,6 +128,7 @@ class MatrixGridLayout:
                           self.cs_mat_col_width [-1]+self.cs_extra_cols[-1])
 
     def _set_shapes(self):
+        '''compute the shapes of the arrays in the grid, obtain the maximal number of rows/cols'''
         self.array_shape = np.empty((self.nGridRows, self.nGridCols), tuple)
 
         for i in range(self.nGridRows):
@@ -184,7 +185,7 @@ class MatrixGridLayout:
         '''return the actual indices of element (i,j) in the matrix at grid position (gM,gN)'''
         last_row  = self.cs_mat_row_height[gM+1] + self.cs_extra_rows[gM]
         last_col  = self.cs_mat_col_width [gN+1] + self.cs_extra_cols[gN]
-        #A_shape   = (self.matrices[gM][gN]).shape
+
         A_shape   = self.array_shape[gM][gN]
         return (last_row - (A_shape[0] -i),
                 last_col - (A_shape[1] - j)
@@ -201,7 +202,7 @@ class MatrixGridLayout:
                A_shape
 
     def tex_repr( self, blockseps = r'\noalign{\vskip2mm} '):
-        '''Create a list of strings, one for each line in the grid'''
+        '''Create a list of strings from the array of TeX strings, one for each line in the grid ready to print in the LaTeX document'''
         self.tex_list =[' & '.join( self.a_tex[k,:]) for k in range(self.a_tex.shape[0])]
         for i in range( len(self.tex_list) -1):
             self.tex_list[i] += r' \\'
@@ -214,7 +215,7 @@ class MatrixGridLayout:
             self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += sep
 
     def array_of_tex_entries(self, formater=repr):
-        '''Create a matrix of strings from the grid entries'''
+        '''Create a matrix of TeX strings from the grid entries'''
 
         a_tex = np.full( self.tex_shape,"", dtype=object)
 
@@ -228,7 +229,7 @@ class MatrixGridLayout:
         self.a_tex = a_tex
 
     def decorate_tex_entries( self, gM, gN, decorate, entries=None):
-        '''apply decorate to the list of i,j entries to grid matrix at (gM,gN)'''
+        '''apply decorate to the list of i,j TeX entries to grid matrix at (gM,gN)'''
         try: # avoid writing code for A == None case
             tl,br,shape = self._top_left_bottom_right(gM,gN)
 
@@ -487,8 +488,8 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
-    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivto or not
-    array_names:      [ spec* ], where spec=[ (gM,gN), pos, txt ], where the pos string is a,al,ar, b,bl,br (above, above left,...)
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']
     '''
     extra_cols = None if comment_list     is None else 1
     extra_rows = None if variable_summary is None else 2
