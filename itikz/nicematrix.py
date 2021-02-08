@@ -279,7 +279,10 @@ class MatrixGridLayout:
             l = self.extra_cols[i+1]
             if l > 0:
                 if i == last:
-                    fmt += spacer_string + (l-1)*'r'+last_col_format
+                    if l > 1:
+                        fmt += spacer_string + (l-1)*'r'+last_col_format
+                    else:
+                        fmt += spacer_string + last_col_format
                 else:
                     fmt += spacer_string + l*'r'
 
@@ -518,7 +521,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
         for (i,basic) in enumerate(variable_summary):
             if basic:
                 typ.append(red(r'\Uparrow'))
-                var.append( red( f'x_{i+1}'))
+                var.append(red( f'x_{i+1}'))
             else:
                 typ.append(blue(r'\uparrow'))
                 var.append(blue( f'x_{i+1}'))
