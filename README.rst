@@ -58,6 +58,11 @@ Getting Started Guide
 
 `Getting Started Notebook <https://nbviewer.jupyter.org/github/jbn/itikz/blob/master/Quickstart.ipynb>`__
 
+Youtube Video Introducing the nicematrix package
+------------------------------------------------
+
+`<https://www.youtube.com/watch?v=CrWpv7XlAdk>`__
+
 API
 ---
 
