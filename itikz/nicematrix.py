@@ -8,7 +8,7 @@ extension = r'''
 '''
 # -----------------------------------------------------------------
 preamble = r'''
-\newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
+%%%%% \newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
 '''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
@@ -31,12 +31,12 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}
 % ============================================================================ NiceArray
-$\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
+$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 {{mat_rep}}
-\CodeAfter[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
+\CodeAfter %[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
 % --------------------------------------------------------------------------- submatrix delimiters
     {% for loc in submatrix_locs: -%}
-          \SubMatrix({{loc[1]}})[name={{loc[0]}}]
+          \SubMatrix({{loc[1]}})[{{loc[0]}}]
     {% endfor -%}
     {% for txt in submatrix_names: -%}
           {{txt}}
@@ -201,18 +201,18 @@ class MatrixGridLayout:
                (row_offset+A_shape[0]-1, col_offset+A_shape[1]-1), \
                A_shape
 
-    def tex_repr( self, blockseps = r'\noalign{\vskip2mm} '):
+    #def tex_repr( self, blockseps = r' \noalign{\vskip2mm} '):
+    def tex_repr( self, blockseps = r'[2mm]'):
         '''Create a list of strings from the array of TeX strings, one for each line in the grid ready to print in the LaTeX document'''
         self.tex_list =[' & '.join( self.a_tex[k,:]) for k in range(self.a_tex.shape[0])]
         for i in range( len(self.tex_list) -1):
             self.tex_list[i] += r' \\'
 
-        sep = ' ' + blockseps
         for i in (self.cs_mat_row_height[1:-1] + self.cs_extra_rows[1:-1] - self.extra_rows[1:-1]):
-            self.tex_list[i-1] += sep
+            self.tex_list[i-1] += blockseps
 
         if self.extra_rows[-1] != 0: # if there are final extra rows, we need another sep
-            self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += sep
+            self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += blockseps
 
     def array_of_tex_entries(self, formater=repr):
         '''Create a matrix of TeX strings from the grid entries'''
@@ -257,7 +257,8 @@ class MatrixGridLayout:
             s += f"*{N-cur}r"
         return s
 
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
+    #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
@@ -348,16 +349,32 @@ class MatrixGridLayout:
     #    l.append( f'(row-{i}-|col-{j})')
     #    self.row_echelon_paths.append(l)
 
-    def nm_submatrix_locs(self, name='A', color='blue', name_specs=None ):
+    def nm_submatrix_locs(self, name='A', color='blue', name_specs=None, line_specs=None ):
         '''nicematrix style location descriptors of the submatrices'''
         # name_specs = [ spec*]; spec = [ (gM, gN), position, text ]
+        # line_specs = [ spec*]; spec = [ (gM, gN), h_lines, vlines ]
+
+        smat_args = np.full( (self.nGridRows,self.nGridCols),"", dtype=object)
+        if line_specs is not None:
+            for pos,h_lines,v_lines in line_specs:
+                if h_lines is not None:
+                    if isinstance( h_lines, int):
+                        smat_args[pos] = f',hlines={h_lines}'
+                    else:
+                        smat_args[pos] = ',hlines={'+ ','.join([str(s) for s in h_lines]) + '}'
+                if v_lines is not None:
+                    if isinstance( v_lines, int):
+                        smat_args[pos] += f',vlines={v_lines}'
+                    else:
+                        smat_args[pos] += ',vlines={'+ ','.join([str(s) for s in v_lines]) + '}'
 
         locs = []
         for i in range(self.nGridRows):
             for j in range(self.nGridCols):
                 if self.array_shape[i,j][0] != 0:
                     tl,br,_ = self._top_left_bottom_right(i,j)
-                    locs.append( [ f"{name}{i}x{j}", f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}"] )
+                    smat_arg = f"name={name}{i}x{j}"+smat_args[i,j]
+                    locs.append( [ smat_arg, f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}"] )
 
         self.locs = locs
 
@@ -385,7 +402,6 @@ class MatrixGridLayout:
  
             self.array_names = array_names
 
-
     def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
         assert( self.extra_cols[-1] != 0 )
@@ -397,7 +413,6 @@ class MatrixGridLayout:
 
             first_row = self.cs_mat_row_height[g] + self.cs_extra_rows[g] + (self.mat_row_height[g] - A_shape[0])+1
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
-        self.txt_with_locs = txt_with_locs
 
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
         if fig_scale is not None:
@@ -489,6 +504,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -500,7 +516,13 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     m = MatrixGridLayout(matrices, extra_rows=extra_rows, extra_cols = extra_cols )
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
-    partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+    if not isinstance( Nrhs, list):
+        partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+    else:
+        cuts = [m.mat_col_width[-1] - sum(Nrhs)]
+        for cut in Nrhs[1:]:
+            cuts.append( cuts[-1]+cut )
+        partitions = { 1: cuts}
 
     m.array_format_string_list( partitions=partitions )
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
