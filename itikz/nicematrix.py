@@ -392,7 +392,7 @@ class MatrixGridLayout:
                 elif  pos == 'br': t = br.replace('NAME',nm).replace('TXT',txt)
                 if t is not None:
                     array_names.append( t )
- 
+
             self.array_names = array_names
 
     def nm_text(self, txt_list, color='violet'):
@@ -408,41 +408,59 @@ class MatrixGridLayout:
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
-    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='blue,line width=0.6mm' ):
+    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='red', adj=0.1 ):
         tl,_,shape = self._top_left_bottom_right( gM, gN )
-        
-        # --------------------------------------------- # add the end point
-        if (case=='vh') or (case=='hh'):                #   last dir: ->
-            pivots.append( (pivots[-1][0]+1,shape[1]))  #     we end in current row+1, last col
-        else:                                           #   last dir: |
-            pivots.append( (shape[0],pivots[-1][1]))    #     we end in current col, last row
 
-        # --------------------------------------------- # obtain the corner positions
-        if (case == 'vh') or (case == 'vv'):            # first motion is vertical: go down 1 row
-            cur = pivots[0]                             #   since we move vertically, start at cur north east
-        else:                                           # first move is horizontal
-            cur = (pivots[0][0]+1, pivots[0][1])        #   since we move horizontally, start at cur south east
+        def coords(i,j):
+            if i >= shape[0]:
+                x = r'\x1' if j >= shape[1] else r'\x2'
+                y = r'\y1'
+                p = f'({x},{y})'
+            elif j >= shape[1]:
+                x = r'\x1' if i >= shape[0] else r'\x1'
+                y = r'\y2'
+                p = f'({x},{y})'
+            else:
+                x = f'{i+1+tl[0]}'
+                y = f'{j+1+tl[1]}'
+                p = f'({x}-|{y})'
 
-        ll  = [ cur ]           
-        for nxt in pivots[1:]:
-            if nxt[1] != cur[1]:                        # next entry is in  a different column: first go down to its row
-                ll.append( (nxt[0],cur[1]) )
-            ll.append( nxt )                            # now move horizontally to this entry
+            if j != 0 and j < shape[1] and adj != 0:
+                p = f'($ {p} + ({adj:2},0) $)'
+            return p
+
+        cur = pivots[0]
+        ll = [cur] if (case == 'vv') or (case == 'vh') else []
+        for nxt in pivots[1:]:                  # at top right
+            if cur[0] != nxt[0]:                # down 1
+                cur = (cur[0]+1, cur[1])
+                ll.append( cur )
+            if nxt[1] != cur[1]:                # over
+                cur = (cur[0], nxt[1])
+                ll.append( cur )
+            if cur != nxt:
+                ll.append(nxt)                  # down  to top right
             cur = nxt
 
-        # --------------------------------------------- # generate the tikz command
+        if len(ll) == 0 and case == 'hv':
+            ll = [ (pivots[0][0]+1,pivots[0][0] ), (shape[0], pivots[0][1] )]
+
+        if (case == 'hh') or (case == 'vh'):
+            if cur[0] != shape[0]:             # down 1
+                cur = (cur[0]+1, cur[1])
+                ll.append( cur )
+            ll.append( (cur[0], shape[1]))     # over to right
+        else:
+            ll.append( (shape[0], cur[1]))     # down to bottom
+
         if (case=='vh') or (case=='hh'):                #   last dir: ->
             i,j = ll[-2]
             pos = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.south east), \\p2 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
-            end =  r' -- (\x2,\y1) -- (\x1,\y1);'
-            ndx = -2
         else:                                           #   last dir: |
             i,j = ll[-1]
-            pos = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.south west), \\p2 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
-            end = r' -- (\x2,\y1);'
-            ndx = -1
+            pos = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.south east), \\p2 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
 
-        cmd = '\\tikz \\draw['+color+']    ' + pos + ' -- '.join( [f'({i+tl[0]+1}-|{j+tl[1]+1})' for (i,j) in ll[:ndx]]) + end
+        cmd = '\\tikz \\draw['+color+']    ' + pos + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
