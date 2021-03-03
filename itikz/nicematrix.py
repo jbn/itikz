@@ -408,27 +408,31 @@ class MatrixGridLayout:
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
-    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='red', adj=0.1 ):
+    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,linewidth=0.4mm', adj=0.1 ):
         tl,_,shape = self._top_left_bottom_right( gM, gN )
-
+    
         def coords(i,j):
             if i >= shape[0]:
-                x = r'\x1' if j >= shape[1] else r'\x2'
-                y = r'\y1'
+                x = r'\x2' if j >= shape[1] else r'\x4'
+                y = r'\y2'
                 p = f'({x},{y})'
             elif j >= shape[1]:
-                x = r'\x1' if i >= shape[0] else r'\x1'
-                y = r'\y2'
+                x = r'\x2' if i >= shape[0] else r'\x2'
+                y = r'\y4'
+                p = f'({x},{y})'
+            elif j == 0:
+                x = r'\x1'
+                y = r'\y1' if i == 0 else r'\y3'
                 p = f'({x},{y})'
             else:
                 x = f'{i+1+tl[0]}'
                 y = f'{j+1+tl[1]}'
                 p = f'({x}-|{y})'
-
+    
             if j != 0 and j < shape[1] and adj != 0:
                 p = f'($ {p} + ({adj:2},0) $)'
             return p
-
+    
         cur = pivots[0]
         ll = [cur] if (case == 'vv') or (case == 'vh') else []
         for nxt in pivots[1:]:                  # at top right
@@ -441,10 +445,10 @@ class MatrixGridLayout:
             if cur != nxt:
                 ll.append(nxt)                  # down  to top right
             cur = nxt
-
+        
         if len(ll) == 0 and case == 'hv':
             ll = [ (pivots[0][0]+1,pivots[0][0] ), (shape[0], pivots[0][1] )]
-
+    
         if (case == 'hh') or (case == 'vh'):
             if cur[0] != shape[0]:             # down 1
                 cur = (cur[0]+1, cur[1])
@@ -452,15 +456,22 @@ class MatrixGridLayout:
             ll.append( (cur[0], shape[1]))     # over to right
         else:
             ll.append( (shape[0], cur[1]))     # down to bottom
-
+    
+        corners = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.north west), \\p2 = ({self.submatrix_name}{gM}x{gN}.south east), '
+    
+        if (case == 'vv') or (case == 'vh'):
+            p3 = f'\\p3 = ({ll[1][0]+tl[0]+1}-|{ll[1][1]+tl[1]+1}), '
+        else:
+            p3 = f'\\p3 = ({ll[0][0]+tl[0]+1}-|{ll[0][1]+tl[1]+1}), '
+    
         if (case=='vh') or (case=='hh'):                #   last dir: ->
             i,j = ll[-2]
-            pos = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.south east), \\p2 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
+            p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
         else:                                           #   last dir: |
             i,j = ll[-1]
-            pos = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.south east), \\p2 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
-
-        cmd = '\\tikz \\draw['+color+']    ' + pos + ' -- '.join( [coords(*p) for p in ll] ) + ';'
+            p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
+    
+        cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
