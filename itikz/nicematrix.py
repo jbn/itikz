@@ -410,7 +410,7 @@ class MatrixGridLayout:
 
     def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,linewidth=0.4mm', adj=0.1 ):
         tl,_,shape = self._top_left_bottom_right( gM, gN )
-    
+
         def coords(i,j):
             if i >= shape[0]:
                 x = r'\x2' if j >= shape[1] else r'\x4'
@@ -428,11 +428,11 @@ class MatrixGridLayout:
                 x = f'{i+1+tl[0]}'
                 y = f'{j+1+tl[1]}'
                 p = f'({x}-|{y})'
-    
+
             if j != 0 and j < shape[1] and adj != 0:
                 p = f'($ {p} + ({adj:2},0) $)'
             return p
-    
+
         cur = pivots[0]
         ll = [cur] if (case == 'vv') or (case == 'vh') else []
         for nxt in pivots[1:]:                  # at top right
@@ -445,10 +445,10 @@ class MatrixGridLayout:
             if cur != nxt:
                 ll.append(nxt)                  # down  to top right
             cur = nxt
-        
+
         if len(ll) == 0 and case == 'hv':
             ll = [ (pivots[0][0]+1,pivots[0][0] ), (shape[0], pivots[0][1] )]
-    
+
         if (case == 'hh') or (case == 'vh'):
             if cur[0] != shape[0]:             # down 1
                 cur = (cur[0]+1, cur[1])
@@ -456,21 +456,21 @@ class MatrixGridLayout:
             ll.append( (cur[0], shape[1]))     # over to right
         else:
             ll.append( (shape[0], cur[1]))     # down to bottom
-    
+
         corners = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.north west), \\p2 = ({self.submatrix_name}{gM}x{gN}.south east), '
-    
+
         if (case == 'vv') or (case == 'vh'):
             p3 = f'\\p3 = ({ll[1][0]+tl[0]+1}-|{ll[1][1]+tl[1]+1}), '
         else:
             p3 = f'\\p3 = ({ll[0][0]+tl[0]+1}-|{ll[0][1]+tl[1]+1}), '
-    
+
         if (case=='vh') or (case=='hh'):                #   last dir: ->
             i,j = ll[-2]
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
         else:                                           #   last dir: |
             i,j = ll[-1]
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
-    
+
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
@@ -682,6 +682,25 @@ def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, 
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h, m
+
+def gram_schmidt_qr( A_, W_ ):
+    A = sym.Matrix( A_ )
+    W = sym.Matrix( W_ )
+
+    WtW  = W.T @ W
+    WtA  = W.T @ A
+    S    = WtW**(-1)
+    for i in range(S.shape[0]):
+        S[i,i]=sym.sqrt(S[i,i])
+
+    Qt = S*W.T
+    R  = S*WtA
+
+    matrices =  [ [ None,  None,   A,    W ],
+                  [ None,   W.T, WtA,  WtW ],
+                  [ S,       Qt,   R, None ] ]
+    h,m = qr( matrices, formater=sym.latex, array_names=True, tmp_dir="tmp" )
+    return h,m
 
 # ==================================================================================================
 # New Examples
