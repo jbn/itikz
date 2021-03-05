@@ -654,7 +654,7 @@ def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, 
 
     red      = make_decorator(text_color='red',  bf=True)
     red_rgt  = make_decorator(text_color='red',  bf=True, move_right=True)
-    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(N)] + [red(f'w_{i+1}') for i in range(3)], formater= lambda a: a )
+    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(N)] + [red(f'w_{i+1}') for i in range(N)], formater= lambda a: a )
     m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(N)], formater= lambda a: a )
 
     if array_names:
