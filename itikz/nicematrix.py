@@ -637,7 +637,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
 def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
 
-    N = matrices[0][1].shape[1]
+    N = matrices[0][2].shape[1]
 
     m.array_format_string_list()
     m.array_of_tex_entries(formater=formater)
