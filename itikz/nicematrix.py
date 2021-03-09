@@ -470,7 +470,7 @@ class MatrixGridLayout:
         else:                                           #   last dir: |
             i,j = ll[-1]
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
-    
+
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
@@ -639,6 +639,8 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
 def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
 
+    N = matrices[0][2].shape[1]
+
     m.array_format_string_list()
     m.array_of_tex_entries(formater=formater)
 
@@ -654,8 +656,8 @@ def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, 
 
     red      = make_decorator(text_color='red',  bf=True)
     red_rgt  = make_decorator(text_color='red',  bf=True, move_right=True)
-    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(3)] + [red(f'w_{i+1}') for i in range(3)], formater= lambda a: a )
-    m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(3)], formater= lambda a: a )
+    m.add_row_above(0,2, [red(f'v_{i+1}')   for i in range(N)] + [red(f'w_{i+1}') for i in range(N)], formater= lambda a: a )
+    m.add_col_left( 1,1, [red_rgt(f'w^t_{i+1}') for i in range(N)], formater= lambda a: a )
 
     if array_names:
         dec = make_decorator(bf=True, delim='$')
@@ -684,6 +686,25 @@ def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, 
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h, m
+
+def gram_schmidt_qr( A_, W_ ):
+    A = sym.Matrix( A_ )
+    W = sym.Matrix( W_ )
+
+    WtW  = W.T @ W
+    WtA  = W.T @ A
+    S    = WtW**(-1)
+    for i in range(S.shape[0]):
+        S[i,i]=sym.sqrt(S[i,i])
+
+    Qt = S*W.T
+    R  = S*WtA
+
+    matrices =  [ [ None,  None,   A,    W ],
+                  [ None,   W.T, WtA,  WtW ],
+                  [ S,       Qt,   R, None ] ]
+    h,m = qr( matrices, formater=sym.latex, array_names=True, tmp_dir="tmp" )
+    return h,m
 
 # ==================================================================================================
 # New Examples
