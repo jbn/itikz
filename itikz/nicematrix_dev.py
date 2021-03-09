@@ -8,7 +8,7 @@ extension = r'''
 '''
 # -----------------------------------------------------------------
 preamble = r'''
-\newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
+%%%%% \newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
 '''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
@@ -31,12 +31,12 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}
 % ============================================================================ NiceArray
-$\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
+$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 {{mat_rep}}
-\CodeAfter[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
+\CodeAfter %[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
 % --------------------------------------------------------------------------- submatrix delimiters
     {% for loc in submatrix_locs: -%}
-          \SubMatrix({{loc[1]}})[name={{loc[0]}}]
+          \SubMatrix({{loc[1]}})[{{loc[0]}}]
     {% endfor -%}
     {% for txt in submatrix_names: -%}
           {{txt}}
@@ -48,13 +48,15 @@ $\begin{NiceArray}[create-medium-nodes]{{mat_format}}{{mat_options}}
         \node [draw,{{loc[1]}},fit = {{loc[0]}}]  {} ;
     {% endfor -%}
     \end{scope}
-
+%
 % --------------------------------------------------------------------------- explanatory text
     {% for loc,txt,c in txt_with_locs: -%}
         \node [right,align=left,color={{c}}] at {{loc}}  {\qquad {{txt}} } ;
     {% endfor -%}
-
+%
 % --------------------------------------------------------------------------- row echelon form path
+    {% for t in rowechelon_paths %} {{t}}
+    {% endfor -%}
 \end{tikzpicture}
 \end{NiceArray}$
 {% if fig_scale %}
@@ -112,6 +114,7 @@ class MatrixGridLayout:
 
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
+        self.rowechelon_paths = []
 
     def adjust_positions( self, extra_cols=None, extra_rows=None ):
         '''insert extra rows and cols between matrices'''
@@ -201,18 +204,18 @@ class MatrixGridLayout:
                (row_offset+A_shape[0]-1, col_offset+A_shape[1]-1), \
                A_shape
 
-    def tex_repr( self, blockseps = r'\noalign{\vskip2mm} '):
+    #def tex_repr( self, blockseps = r' \noalign{\vskip2mm} '):
+    def tex_repr( self, blockseps = r'[2mm]'):
         '''Create a list of strings from the array of TeX strings, one for each line in the grid ready to print in the LaTeX document'''
         self.tex_list =[' & '.join( self.a_tex[k,:]) for k in range(self.a_tex.shape[0])]
         for i in range( len(self.tex_list) -1):
             self.tex_list[i] += r' \\'
 
-        sep = ' ' + blockseps
         for i in (self.cs_mat_row_height[1:-1] + self.cs_extra_rows[1:-1] - self.extra_rows[1:-1]):
-            self.tex_list[i-1] += sep
+            self.tex_list[i-1] += blockseps
 
         if self.extra_rows[-1] != 0: # if there are final extra rows, we need another sep
-            self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += sep
+            self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += blockseps
 
     def array_of_tex_entries(self, formater=repr):
         '''Create a matrix of TeX strings from the grid entries'''
@@ -257,7 +260,8 @@ class MatrixGridLayout:
             s += f"*{N-cur}r"
         return s
 
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
+    #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
@@ -279,7 +283,10 @@ class MatrixGridLayout:
             l = self.extra_cols[i+1]
             if l > 0:
                 if i == last:
-                    fmt += spacer_string + (l-1)*'r'+last_col_format
+                    if l > 1:
+                        fmt += spacer_string + (l-1)*'r'+last_col_format
+                    else:
+                        fmt += spacer_string + last_col_format
                 else:
                     fmt += spacer_string + l*'r'
 
@@ -335,26 +342,32 @@ class MatrixGridLayout:
         for (i,v) in enumerate(m):
             self.a_tex[tl[0]+i, tl[1]+offset-1] = formater( v )
 
-    #def add_row_echelon_path( self, gM, gN, pivot_locs, tikz_opts='[dashed,red]' ):
-    #    '''This would work, but produces an unsatisfactory result'''
-    #    l = [tikz_opts]
-    #    for p in pivot_locs:
-    #        i,j = self.element_indices( *p, gM, gN ); i+=1; j+= 1
-    #        l.extend([ f'(row-{i}-|col-{j})', f'(row-{i+1}-|col-{j})'])
-    #    i+=1; j+= 1
-    #    l.append( f'(row-{i}-|col-{j})')
-    #    self.row_echelon_paths.append(l)
-
-    def nm_submatrix_locs(self, name='A', color='blue', name_specs=None ):
+    def nm_submatrix_locs(self, name='A', color='blue', name_specs=None, line_specs=None ):
         '''nicematrix style location descriptors of the submatrices'''
         # name_specs = [ spec*]; spec = [ (gM, gN), position, text ]
+        # line_specs = [ spec*]; spec = [ (gM, gN), h_lines, vlines ]
+        self.submatrix_name = name
+        smat_args = np.full( (self.nGridRows,self.nGridCols),"", dtype=object)
+        if line_specs is not None:
+            for pos,h_lines,v_lines in line_specs:
+                if h_lines is not None:
+                    if isinstance( h_lines, int):
+                        smat_args[pos] = f',hlines={h_lines}'
+                    else:
+                        smat_args[pos] = ',hlines={'+ ','.join([str(s) for s in h_lines]) + '}'
+                if v_lines is not None:
+                    if isinstance( v_lines, int):
+                        smat_args[pos] += f',vlines={v_lines}'
+                    else:
+                        smat_args[pos] += ',vlines={'+ ','.join([str(s) for s in v_lines]) + '}'
 
         locs = []
         for i in range(self.nGridRows):
             for j in range(self.nGridCols):
                 if self.array_shape[i,j][0] != 0:
                     tl,br,_ = self._top_left_bottom_right(i,j)
-                    locs.append( [ f"{name}{i}x{j}", f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}"] )
+                    smat_arg = f"name={name}{i}x{j}"+smat_args[i,j]
+                    locs.append( [ smat_arg, f"{{{tl[0]+1}-{tl[1]+1}}}{{{br[0]+1}-{br[1]+1}}}"] )
 
         self.locs = locs
 
@@ -379,9 +392,8 @@ class MatrixGridLayout:
                 elif  pos == 'br': t = br.replace('NAME',nm).replace('TXT',txt)
                 if t is not None:
                     array_names.append( t )
- 
-            self.array_names = array_names
 
+            self.array_names = array_names
 
     def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
@@ -396,20 +408,87 @@ class MatrixGridLayout:
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
+    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,line width=0.4mm', adj=0.1 ):
+        tl,_,shape = self._top_left_bottom_right( gM, gN )
+    
+        def coords(i,j):
+            if i >= shape[0]:
+                x = r'\x2' if j >= shape[1] else r'\x4'
+                y = r'\y2'
+                p = f'({x},{y})'
+            elif j >= shape[1]:
+                x = r'\x2' if i >= shape[0] else r'\x2'
+                y = r'\y4'
+                p = f'({x},{y})'
+            elif j == 0:
+                x = r'\x1'
+                y = r'\y1' if i == 0 else r'\y3'
+                p = f'({x},{y})'
+            else:
+                x = f'{i+1+tl[0]}'
+                y = f'{j+1+tl[1]}'
+                p = f'({x}-|{y})'
+    
+            if j != 0 and j < shape[1] and adj != 0:
+                p = f'($ {p} + ({adj:2},0) $)'
+            return p
+    
+        cur = pivots[0]
+        ll = [cur] if (case == 'vv') or (case == 'vh') else []
+        for nxt in pivots[1:]:                  # at top right
+            if cur[0] != nxt[0]:                # down 1
+                cur = (cur[0]+1, cur[1])
+                ll.append( cur )
+            if nxt[1] != cur[1]:                # over
+                cur = (cur[0], nxt[1])
+                ll.append( cur )
+            if cur != nxt:
+                ll.append(nxt)                  # down  to top right
+            cur = nxt
+        
+        if len(ll) == 0 and case == 'hv':
+            ll = [ (pivots[0][0]+1,pivots[0][0] ), (shape[0], pivots[0][1] )]
+    
+        if (case == 'hh') or (case == 'vh'):
+            if cur[0] != shape[0]:             # down 1
+                cur = (cur[0]+1, cur[1])
+                ll.append( cur )
+            ll.append( (cur[0], shape[1]))     # over to right
+        else:
+            ll.append( (shape[0], cur[1]))     # down to bottom
+    
+        corners = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.north west), \\p2 = ({self.submatrix_name}{gM}x{gN}.south east), '
+    
+        if (case == 'vv') or (case == 'vh'):
+            p3 = f'\\p3 = ({ll[1][0]+tl[0]+1}-|{ll[1][1]+tl[1]+1}), '
+        else:
+            p3 = f'\\p3 = ({ll[0][0]+tl[0]+1}-|{ll[0][1]+tl[1]+1}), '
+    
+        if (case=='vh') or (case=='hh'):                #   last dir: ->
+            i,j = ll[-2]
+            p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
+        else:                                           #   last dir: |
+            i,j = ll[-1]
+            p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
+    
+        cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
+        self.rowechelon_paths.append( cmd )
+
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
         return jinja2.Template( template ).render( \
-                preamble       = preamble,
-                fig_scale      = fig_scale,
-                extension      = extension,
-                mat_rep        = '\n'.join( self.tex_list ),
-                mat_format     = '{'+self.format+'}',
-                mat_options    = '',
-                submatrix_locs = self.locs,
-                submatrix_names= self.array_names,
-                pivot_locs     = [],
-                txt_with_locs  = self.txt_with_locs
+                preamble        = preamble,
+                fig_scale       = fig_scale,
+                extension       = extension,
+                mat_rep         = '\n'.join( self.tex_list ),
+                mat_format      = '{'+self.format+'}',
+                mat_options     = '',
+                submatrix_locs  = self.locs,
+                submatrix_names = self.array_names,
+                pivot_locs      = [],
+                txt_with_locs   = self.txt_with_locs,
+                rowechelon_paths= self.rowechelon_paths
         )
 # -----------------------------------------------------------------------------------------------------
 def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
@@ -482,11 +561,13 @@ def mk_ge_names(n, lhs='E', rhs=['A','b']):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, variable_summary=None, array_names=None, fig_scale=None, tmp_dir=None, keep_file=None):
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None, fig_scale=None, tmp_dir=None, keep_file=None):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
     array_names:      list of names for the two columns: [ 'E', ['A','b','I']
@@ -497,7 +578,15 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
     m = MatrixGridLayout(matrices, extra_rows=extra_rows, extra_cols = extra_cols )
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
-    partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+    if not isinstance( Nrhs, list):
+        partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
+    else:
+        # quick fix: TODO clean up the locations here...
+        nrhs = Nrhs.copy(); nrhs.reverse()
+        cuts = [m.mat_col_width[-1] - sum(nrhs)]
+        for cut in nrhs[1:]:
+            cuts.append( cuts[-1]+cut )
+        partitions = { 1: cuts}
 
     m.array_format_string_list( partitions=partitions )
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
@@ -518,7 +607,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
         for (i,basic) in enumerate(variable_summary):
             if basic:
                 typ.append(red(r'\Uparrow'))
-                var.append( red( f'x_{i+1}'))
+                var.append(red( f'x_{i+1}'))
             else:
                 typ.append(blue(r'\uparrow'))
                 var.append(blue( f'x_{i+1}'))
@@ -532,6 +621,10 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, comment_list=None, var
 
     m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
     m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
+
+    if ref_path_list is not None:
+        for spec in ref_path_list:
+            m.nm_add_rowechelon_path( *spec )
 
     m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=fig_scale )
 
