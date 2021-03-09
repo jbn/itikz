@@ -408,7 +408,7 @@ class MatrixGridLayout:
             txt_with_locs.append(( f'({first_row}-{self.tex_shape[1]-1}.east)', txt, color) )
         self.txt_with_locs = txt_with_locs
 
-    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,linewidth=0.4mm', adj=0.1 ):
+    def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,line width=0.4mm', adj=0.1 ):
         tl,_,shape = self._top_left_bottom_right( gM, gN )
     
         def coords(i,j):
@@ -581,8 +581,10 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
     if not isinstance( Nrhs, list):
         partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
     else:
-        cuts = [m.mat_col_width[-1] - sum(Nrhs)]
-        for cut in Nrhs[1:]:
+        # quick fix: TODO clean up the locations here...
+        nrhs = Nrhs.copy(); nrhs.reverse()
+        cuts = [m.mat_col_width[-1] - sum(nrhs)]
+        for cut in nrhs[1:]:
             cuts.append( cuts[-1]+cut )
         partitions = { 1: cuts}
 
