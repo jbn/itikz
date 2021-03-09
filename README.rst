@@ -21,6 +21,13 @@ The installation information below will install the version provided by the orig
 To use the upgraded version here, download it, and copy the itikz subdirectory into
 a directory in your PYTHONPATH.
 
+Prerequisites:
+- a working TeX installation
+- a recent version of François Pantigny's nicematrix package https://ctan.org/pkg/nicematrix
+- inkscape
+- pdf2svg
+
+
 To see the directories in your pythonpath, execute the following in python:
 
 .. code:: python
