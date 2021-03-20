@@ -19,6 +19,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage{xltxtra}
 \usepackage{pdflscape}
 \usepackage{graphicx}
+\usepackage[table,dvipsnames]{xcolor}
 \usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
@@ -32,6 +33,13 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 {{preamble}}
 % ============================================================================ NiceArray
 $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
+{% if codebefore != [] -%}
+\CodeBefore
+    {% for entry in codebefore: -%}
+    {{entry}}
+    {% endfor -%}%
+\Body
+{% endif %}%
 {{mat_rep}}
 \CodeAfter %[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
 % --------------------------------------------------------------------------- submatrix delimiters
@@ -115,6 +123,7 @@ class MatrixGridLayout:
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
         self.rowechelon_paths = []
+        self.codebefore       = []
 
     def adjust_positions( self, extra_cols=None, extra_rows=None ):
         '''insert extra rows and cols between matrices'''
@@ -474,6 +483,9 @@ class MatrixGridLayout:
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
+    def apply( self, func,  *args, **kwargs ):
+        func( self, *args, **kwargs )
+
     def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
@@ -488,7 +500,8 @@ class MatrixGridLayout:
                 submatrix_names = self.array_names,
                 pivot_locs      = [],
                 txt_with_locs   = self.txt_with_locs,
-                rowechelon_paths= self.rowechelon_paths
+                rowechelon_paths= self.rowechelon_paths,
+                codebefore      = self.codebefore,
         )
 # -----------------------------------------------------------------------------------------------------
 def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
@@ -533,19 +546,26 @@ def str_rep_from_mats( A, b, formater=repr ):
     sb = np.array(b).reshape(-1,1)
     return np.hstack( [sA, sb] )
 # ================================================================================================================================
-def mk_ge_names(n, lhs='E', rhs=['A','b']):
+def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
     '''utility to generate array names for ge'''
     names = np.full( shape=(n,2),fill_value='', dtype=object)
 
     def pe(i):
-        return ' '.join([f' {lhs}_{k}' for k in range(i,0,-1)])
-    def pa(i,e_prod):
+        if start_index is None:
+            return ' '.join([f' {lhs}' for k in range(i,0,-1)])
+        else:
+            return ' '.join([f' {lhs}_{k+start_index-1}' for k in range(i,0,-1)])
+    def pa(e_prod):
         return r' \mid '.join( [e_prod+' '+k for k in rhs ])
 
     for i in range(n):
-        names[i,0] = f'{lhs}_{i}'
+        if start_index is None:
+            names[i,0] = f'{lhs}'
+        else:
+            names[i,0] = f'{lhs}_{start_index+i-1}'
+
         e_prod = pe(i)
-        names[i,1] = pa(i,e_prod)
+        names[i,1] = pa(e_prod)
 
     if len(rhs) > 1:
         for i in range(n):
@@ -561,7 +581,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b']):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None, fig_scale=None, tmp_dir=None, keep_file=None):
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None, start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -571,6 +591,8 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
     array_names:      list of names for the two columns: [ 'E', ['A','b','I']
+    start_index:      first subscript for the elementart operation matrices (can be None)
+    func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
     extra_cols = None if comment_list     is None else 1
     extra_rows = None if variable_summary is None else 2
@@ -596,6 +618,9 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
         for spec in pivot_list:
             m.decorate_tex_entries( *spec[0], red_box, entries=spec[1] )
 
+    if func is not None:
+        m.apply( func )
+
     if comment_list is not None:
         m.nm_text( comment_list )
 
@@ -615,7 +640,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
         m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
 
     if array_names is not None:
-        name_specs = mk_ge_names( m.nGridRows, *array_names )
+        name_specs = mk_ge_names( m.nGridRows, *array_names, start_index )
     else:
         name_specs = None
 
