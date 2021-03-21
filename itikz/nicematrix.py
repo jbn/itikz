@@ -4,12 +4,9 @@ import jinja2
 import itikz
 
 # ================================================================================================================================
-extension = r'''
-'''
+extension = r''' '''
 # -----------------------------------------------------------------
-preamble = r'''
-%%%%% \newcolumntype{I}{!{\OnlyMainNiceMatrix{\vrule}}}
-'''
+preamble = r''' '''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \pagestyle{empty}
@@ -19,7 +16,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage{xltxtra}
 \usepackage{pdflscape}
 \usepackage{graphicx}
-\usepackage[table,dvipsnames]{xcolor}
+\usepackage[table,svgnames]{xcolor}
 \usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
@@ -30,7 +27,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 {{fig_scale}}
 {% endif %}
 % ---------------------------------------------------------------------------- preamble
-{{preamble}}
+{{preamble}}%
 % ============================================================================ NiceArray
 $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 {% if codebefore != [] -%}
@@ -124,6 +121,8 @@ class MatrixGridLayout:
         self.txt_with_locs    = []
         self.rowechelon_paths = []
         self.codebefore       = []
+        self.preamble         = '%\n'
+        self.extension        = '%\n'
 
     def adjust_positions( self, extra_cols=None, extra_rows=None ):
         '''insert extra rows and cols between matrices'''
@@ -486,13 +485,13 @@ class MatrixGridLayout:
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
 
-    def nm_latexdoc( self, template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=None ):
+    def nm_latexdoc( self, template = GE_TEMPLATE, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
         return jinja2.Template( template ).render( \
-                preamble        = preamble,
+                preamble        = self.preamble,
                 fig_scale       = fig_scale,
-                extension       = extension,
+                extension       = self.extension,
                 mat_rep         = '\n'.join( self.tex_list ),
                 mat_format      = '{'+self.format+'}',
                 mat_options     = '',
@@ -504,10 +503,11 @@ class MatrixGridLayout:
                 codebefore      = self.codebefore,
         )
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
+def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
     box_decorator         = "\\boxed<{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
+    bg_color_decorator    = "\\colorbox<{color}><{a}>"
     bf_decorator          = "\\mathbf<{a}>"
     rlap_decorator        = "\\mathrlap<{a}>"
     delim_decorator       = "<{delim}{a}{delim}>"
@@ -517,10 +517,13 @@ def make_decorator( text_color='black', text_bg=None, boxed=None, bf=None, move_
         x = bf_decorator.format(a=x)
     if boxed is not None:
         x = box_decorator.format( a=x )
+    if bg_color is not None:
+        x = bg_color_decorator.format(a=x, color=bg_color)
     if text_bg is not None:
         x = color_decorator.format(a=x, text_color= text_color, bg_color=text_bg)
     elif text_color != 'black':
         x = txt_color_decorator.format( color=text_color, a=x)
+
     if move_right:
         x = rlap_decorator.format(a=x)
     if delim is not None:
@@ -581,7 +584,8 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None, start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None):
+def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -603,8 +607,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
     if not isinstance( Nrhs, list):
         partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
     else:
-        # quick fix: TODO clean up the locations here...
-        nrhs = Nrhs.copy(); nrhs.reverse()
+        nrhs = Nrhs.copy(); nrhs.reverse()       # partitions just specifies each col
         cuts = [m.mat_col_width[-1] - sum(nrhs)]
         for cut in nrhs[1:]:
             cuts.append( cuts[-1]+cut )
@@ -651,7 +654,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
         for spec in ref_path_list:
             m.nm_add_rowechelon_path( *spec )
 
-    m_code = m.nm_latexdoc(template = GE_TEMPLATE, preamble = preamble, extension = extension, fig_scale=fig_scale )
+    m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
 
     h = itikz.fetch_or_compile_svg(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
@@ -663,6 +666,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
 # ================================================================================================================================
 def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
+    m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
     N = matrices[0][2].shape[1]
 
@@ -703,7 +707,7 @@ def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, 
 
     m.tex_repr( blockseps = r'\noalign{\vskip3mm} ')
 
-    m_code = m.nm_latexdoc( preamble = preamble + r" \NiceMatrixOptions{cell-space-limits = 2pt}", fig_scale=fig_scale )
+    m_code = m.nm_latexdoc( fig_scale=fig_scale )
 
 
     h = itikz.fetch_or_compile_svg(
@@ -759,7 +763,7 @@ def gram_schmidt_qr( A_, W_ ):
 # m3.nm_submatrix_locs()
 # m3.tex_repr( blockseps = r'\noalign{\vskip2mm}')
 #
-# m3_code = m3.nm_latexdoc(template = nM.GE_TEMPLATE, preamble = nM.preamble, extension = nM.extension )
+# m3_code = m3.nm_latexdoc(template = nM.GE_TEMPLATE )
 #
 # if True:
 #     h = itikz.fetch_or_compile_svg(
