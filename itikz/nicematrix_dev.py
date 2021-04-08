@@ -30,7 +30,7 @@ $\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_for
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
 {{eigenbasis}} {% if orthonormal_basis %}
 %  orthonormal eigenvectors ------------------------------------------------------------
- {{rule_format}} \addlinespace[2mm] 
+ {{rule_format}} \addlinespace[2mm]
 {\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
 {{orthonormal_basis}}
 {% endif -%}
@@ -798,9 +798,15 @@ class EigenProblemTable:
         self.eig   = eig
         if formater is not None:
            f_eig = {}
+           #l     = list( map( formater, eig['lambda']) )
+           #f_eig['lambda'] = list( map( lambda x: '$' + x + '$', l) )
            f_eig['lambda'] = list( map( formater, eig['lambda']) )
+
            if 'sigma' in eig.keys():
+              #l              = list( map( formater, eig['sigma']) )
+              #f_eig['sigma'] = list( map( lambda x: '$' + x + '$', l) )
               f_eig['sigma'] = list( map( formater, eig['sigma']) )
+
            f_eig['ma']    = eig['ma']
 
            if 'evecs' in eig.keys():
@@ -841,18 +847,18 @@ class EigenProblemTable:
             l_lambda   = []
             for vec in vecs:
                 l_lambda.append( np.array( [ formater(v) for v in vec], dtype=object ))
-            groups.append( l_lambda )   
+            groups.append( l_lambda )
         return groups
 
     def mk_vectors(self, key, formater=str, add_height=0 ):
         groups = []
-        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '            
+        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '
         for vecs in self.eig[key]:
             l_lambda   = []
             for vec in vecs:
                 l = [ formater(v) for v in vec]
                 l_lambda.append( r'$\begin{pNiceArray}{r}' + nl.join(l) + r' \end{pNiceArray}$')
-            groups.append( ', '.join(l_lambda ))   
+            groups.append( ', '.join(l_lambda ))
         return " & & ".join( groups )
 
     def _mk_diag_matrix( self, key='lambda', mm=8, formater=str ):
@@ -886,7 +892,7 @@ class EigenProblemTable:
         return pre,S,post
 
     def _fmt_matrix( self, pre, m, post, add_height=0 ):
-        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '            
+        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '
 
         mat = []
         for i in range( m.shape[0]):
@@ -988,7 +994,7 @@ class EigenProblemTable:
 #                       [sym.Matrix([2, 1, 2,1])/sym.sqrt(10)],
 #                       [sym.Matrix([1, 1, 0,0])/sym.sqrt(2)]]
 #        }
-#  
+#
 #  )
 
 # ==================================================================================================
