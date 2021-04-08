@@ -8,6 +8,44 @@ extension = r''' '''
 # -----------------------------------------------------------------
 preamble = r''' '''
 # =================================================================
+EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
+\pagestyle{empty}
+\usepackage{booktabs}
+\usepackage{mathtools}
+\usepackage{nicematrix}
+\usepackage{xcolor}
+
+\begin{document}
+{% if fig_scale %}
+{{fig_scale}}
+{% endif %}
+%====================================================================
+\begin{tabular}{{table_format}} \toprule
+{% if sigmas %}% sigma -----------------------------------------------------------------
+$\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
+{% endif %}% lambda --------------------------------------------------------------------
+$\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
+$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
+%  eigenvectors ------------------------------------------------------------------------
+{\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
+{{eigenbasis}} {% if orthonormal_basis %}
+%  orthonormal eigenvectors ------------------------------------------------------------
+ {{rule_format}} \addlinespace[2mm] 
+{\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
+{{orthonormal_basis}}
+{% endif -%}
+ \addlinespace[2mm] \midrule \addlinespace[2mm]
+% ------------------------------------------------------------- lambda
+$\color{{color}}{ {{matrix_names[0]}} =}$ & {{lambda_matrix}} \\ \addlinespace[2mm]
+% ------------------------------------------------------------- Q
+$\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[2mm] \bottomrule
+\end{tabular}
+{% if fig_scale %}
+}
+{% endif %}
+\end{document}
+'''
+# =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \pagestyle{empty}
 %\usepackage[paperheight=9in,paperwidth=56in,top=1in,bottom=1in,right=1in,left=1in,heightrounded,showframe]{geometry}
@@ -71,7 +109,7 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 \end{document}
 '''
 # ================================================================================================================================
-# Index Computations and formating associated with Matrices layed out on a grid.
+# Index Computations and formating associated with Matrices laid out on a grid.
 # ================================================================================================================================
 class MatrixGridLayout:
     ''' Basic Computations of the Matrix Grid Layout and the resulting Tex Representation
@@ -225,7 +263,7 @@ class MatrixGridLayout:
         if self.extra_rows[-1] != 0: # if there are final extra rows, we need another sep
             self.tex_list[ self.tex_shape[0] - self.extra_rows[-1] - 1] += blockseps
 
-    def array_of_tex_entries(self, formater=repr):
+    def array_of_tex_entries(self, formater=str):
         '''Create a matrix of TeX strings from the grid entries'''
 
         a_tex = np.full( self.tex_shape,"", dtype=object)
@@ -326,25 +364,25 @@ class MatrixGridLayout:
         return (tl[0],tl[1]+shape[1]), \
                (self.tex_shape[0]-tl[0],self.extra_cols[gN+1])
 
-    def add_row_above( self, gM, gN, m, formater=repr, offset=0 ):
+    def add_row_above( self, gM, gN, m, formater=str, offset=0 ):
         '''add tex entries to the tex array'''
         tl,shape = self.tl_shape_above( gM, gN )
         for (j,v) in enumerate(m):
             self.a_tex[tl[0]+offset, tl[1]+j] = formater( v )
 
-    def add_row_below( self, gM, gN, m, formater=repr, offset=0 ):
+    def add_row_below( self, gM, gN, m, formater=str, offset=0 ):
         '''add tex entries to the tex array'''
         tl,shape = self.tl_shape_below( gM, gN )
         for (j,v) in enumerate(m):
             self.a_tex[tl[0]+offset, tl[1]+j] = formater( v )
 
-    def add_col_right( self, gM, gN, m, formater=repr, offset=0 ):
+    def add_col_right( self, gM, gN, m, formater=str, offset=0 ):
         '''add tex entries to the tex array'''
         tl,shape = self.tl_shape_right( gM, gN )
         for (i,v) in enumerate(m):
             self.a_tex[tl[0]+i, tl[1]+offset] = formater( v )
 
-    def add_col_left( self, gM, gN, m, formater=repr, offset=0 ):
+    def add_col_left( self, gM, gN, m, formater=str, offset=0 ):
         '''add tex entries to the tex array'''
         tl,shape = self.tl_shape_left( gM, gN )
         for (i,v) in enumerate(m):
@@ -418,7 +456,7 @@ class MatrixGridLayout:
 
     def nm_add_rowechelon_path( self, gM,gN, pivots, case='hh', color='violet,line width=0.4mm', adj=0.1 ):
         tl,_,shape = self._top_left_bottom_right( gM, gN )
-    
+
         def coords(i,j):
             if i >= shape[0]:
                 x = r'\x2' if j >= shape[1] else r'\x4'
@@ -436,11 +474,11 @@ class MatrixGridLayout:
                 x = f'{i+1+tl[0]}'
                 y = f'{j+1+tl[1]}'
                 p = f'({x}-|{y})'
-    
+
             if j != 0 and j < shape[1] and adj != 0:
                 p = f'($ {p} + ({adj:2},0) $)'
             return p
-    
+
         cur = pivots[0]
         ll = [cur] if (case == 'vv') or (case == 'vh') else []
         for nxt in pivots[1:]:                  # at top right
@@ -453,10 +491,10 @@ class MatrixGridLayout:
             if cur != nxt:
                 ll.append(nxt)                  # down  to top right
             cur = nxt
-        
+
         if len(ll) == 0 and case == 'hv':
             ll = [ (pivots[0][0]+1,pivots[0][0] ), (shape[0], pivots[0][1] )]
-    
+
         if (case == 'hh') or (case == 'vh'):
             if cur[0] != shape[0]:             # down 1
                 cur = (cur[0]+1, cur[1])
@@ -464,14 +502,14 @@ class MatrixGridLayout:
             ll.append( (cur[0], shape[1]))     # over to right
         else:
             ll.append( (shape[0], cur[1]))     # down to bottom
-    
+
         corners = f'let \\p1 = ({self.submatrix_name}{gM}x{gN}.north west), \\p2 = ({self.submatrix_name}{gM}x{gN}.south east), '
-    
+
         if (case == 'vv') or (case == 'vh'):
             p3 = f'\\p3 = ({ll[1][0]+tl[0]+1}-|{ll[1][1]+tl[1]+1}), '
         else:
             p3 = f'\\p3 = ({ll[0][0]+tl[0]+1}-|{ll[0][1]+tl[1]+1}), '
-    
+
         if (case=='vh') or (case=='hh'):                #   last dir: ->
             i,j = ll[-2]
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
@@ -534,15 +572,15 @@ def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None,
     return lambda a: x.format(a=a)
 
 # ================================================================================================================================
-def str_rep_from_mat( A, formater=repr):
-    '''str_rep_from_mat( A, formater=repr)
+def str_rep_from_mat( A, formater=str):
+    '''str_rep_from_mat( A, formater=str)
     convert matrix A to a string using formater
     '''
     M,N=A.shape
     return np.array( [[formater(A[i,j]) for j in range(N)] for i in range(M)] )
 
-def str_rep_from_mats( A, b, formater=repr ):
-    '''str_rep_from_mats( A, b, formater=repr)
+def str_rep_from_mats( A, b, formater=str ):
+    '''str_rep_from_mats( A, b, formater=str)
     convert matrix A and vector b to a string using formater, return the augmented matrix
     '''
     sA = str_rep_from_mat(A, formater)
@@ -584,7 +622,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
@@ -664,7 +702,7 @@ def ge( matrices, Nrhs=0, formater=repr, pivot_list=None, ref_path_list=None, co
     return h, m
 
 # ================================================================================================================================
-def qr(matrices, formater=repr, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
@@ -734,6 +772,224 @@ def gram_schmidt_qr( A_, W_ ):
                   [ S,       Qt,   R, None ] ]
     h,m = qr( matrices, formater=sym.latex, array_names=True, tmp_dir="tmp" )
     return h,m
+
+# ==================================================================================================
+# EigenProblem Tables
+# ==================================================================================================
+class EigenProblemTable:
+    ''' Basic Computations of the EigenDecomposition tables and the resulting Tex Representation
+        Indexing is zero-based.
+    '''
+
+    def __init__(self, eig, formater=None ):
+        '''
+        eig:  dictionary with entries
+              'lambda'        :    distinct eigenvalues
+              'sigma'         :    distinct singular values
+              'ma'            :    corresponding algebraic multiplicites
+              'evecs'         :    list of mg vectors for each eigenvalue
+              'qvecs'         :    list of mg orthonormal vectors for each eigenvalue
+        '''
+
+        self.N     = sum(eig['ma'])
+        self.ncols = 2*len(eig['lambda'])-1
+        self.color = "blue"
+
+        self.eig   = eig
+        if formater is not None:
+           f_eig = {}
+           f_eig['lambda'] = list( map( formater, eig['lambda']) )
+           if 'sigma' in eig.keys():
+              f_eig['sigma'] = list( map( formater, eig['sigma']) )
+           f_eig['ma']    = eig['ma']
+
+           if 'evecs' in eig.keys():
+              f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
+           if 'qvecs' in eig.keys():
+              f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
+           self.eig = f_eig
+
+        self.tbl_fmt   = self._mk_table_format()
+        self.rule_fmt  = self._mk_rule_format()
+
+    def _mk_table_format( self ):
+        fmt = '{@{}l' + self.ncols*'c' + '@{}}'
+        return fmt
+
+    def _mk_rule_format( self ):
+        fmt = ''
+        for i in range(1, len(self.eig['lambda'])+1):
+            fmt += ' \\cmidrule{' + f'{2*i}-{2*i}' + '}'
+        return fmt
+
+    def _mk_values( self, key='lambda', formater=str ):
+        l = list( map( formater, self.eig[key]) )
+        l = list( map( lambda x: '$'+x+'$', l) )
+        ll=[l[0]]
+        for i in l[1:]:
+            ll.append('')
+            ll.append( i)
+        return ll
+
+    def mk_values( self, key, formater=str ):
+        line = self._mk_values(key=key,  formater=formater)
+        return " & ".join( line ) + r' \\' # + self.rule_fmt
+
+    def _mk_vectors(self, key, formater=str ):
+        groups = []
+        for vecs in self.eig[key]:
+            l_lambda   = []
+            for vec in vecs:
+                l_lambda.append( np.array( [ formater(v) for v in vec], dtype=object ))
+            groups.append( l_lambda )   
+        return groups
+
+    def mk_vectors(self, key, formater=str, add_height=0 ):
+        groups = []
+        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '            
+        for vecs in self.eig[key]:
+            l_lambda   = []
+            for vec in vecs:
+                l = [ formater(v) for v in vec]
+                l_lambda.append( r'$\begin{pNiceArray}{r}' + nl.join(l) + r' \end{pNiceArray}$')
+            groups.append( ', '.join(l_lambda ))   
+        return " & & ".join( groups )
+
+    def _mk_diag_matrix( self, key='lambda', mm=8, formater=str ):
+        space   = '@{\\hspace{' + str(mm) + 'mm}}'
+        pre     = r'\multicolumn{' + f'{self.N}' + '}{c}{\n'+\
+                  r'$\begin{pNiceArray}{' + space.join( self.N*['c'] ) + '}'
+        post    = r'\end{pNiceArray}$}'
+
+        Lambda  = np.full( (self.N,self.N), formater(0), dtype=object)
+        lambdas = []
+        for i,v in enumerate( self.eig['ma'] ):
+            lambdas += v*[self.eig[key][i]]
+        for i,v in enumerate(lambdas):
+            Lambda[i,i] = formater(v)
+
+        return pre,Lambda,post
+
+    def _mk_evecs_matrix( self, key='evec', formater=str, mm=0 ):
+        space = '@{\\hspace{' + str(mm) + 'mm}}' if mm > 0 else ''
+        pre     = r'\multicolumn{' + f'{self.N}' + '}{c}{\n'+\
+                  r'$\begin{pNiceArray}{' + space.join( self.N*['r'] ) + '}'
+        post    = r'\end{pNiceArray}$}'
+
+        S  = np.empty( (self.N,self.N), dtype=object)
+        j  = 0
+        for vecs in self.eig[key]:
+            for vec in vecs:
+                for i,v in enumerate(vec):
+                    S[i,j] = formater(v)
+                j     += 1
+        return pre,S,post
+
+    def _fmt_matrix( self, pre, m, post, add_height=0 ):
+        nl = r' \\ ' if add_height == 0 else r' \\'+ f'[{add_height}mm] '            
+
+        mat = []
+        for i in range( m.shape[0]):
+            mat.append( ' & '.join( m[i,: ]))
+        mat = pre + nl.join( mat ) + r' \\ ' + post
+        return mat
+
+    def mk_diag_matrix( self, key, formater=str, mm=8, extra_space='', add_height=0 ):
+        pre, m, post = self._mk_diag_matrix(key=key, formater=formater, mm=mm )
+        for i in range(m.shape[0]):
+            m[i,0] = extra_space+m[i,0]
+            m[i,self.N-1]=m[i,self.N-1]+extra_space
+        return self._fmt_matrix( pre, m, post, add_height=add_height )
+
+    def mk_evecs_matrix( self, key, formater=str, mm=8,extra_space='', add_height=0  ):
+        pre, m, post = self._mk_evecs_matrix(key=key, formater=formater, mm=mm )
+        for i in range(m.shape[0]):
+            m[i,0] = extra_space+m[i,0]
+            m[i,self.N-1]=m[i,self.N-1]+extra_space
+
+        return self._fmt_matrix( pre, m, post, add_height )
+
+    def decorate_values(self, l, decorate, i=None ):
+        if i is not None:
+            l[i] = decorate( l[i] )
+        else:
+            for i in range(0,len(l)):
+                l[i] = decorate(l[i])
+
+    def decorate_matrix(self, m, decorate, row=None, col=None ):
+        m = m.reshape( m.shape[0],-1 )
+        rows = range( m.shape[0] ) if row is None else [ row ]
+        cols = range( m.shape[1] ) if col is None else [ col ]
+        for i in rows:
+            for j in cols:
+                m[i,j]=decorate( m[i,j])
+
+    def nm_latex_doc( self, formater=sym.latex, case="S", color='blue',
+                      mmLambda=8, mmS=4, spaceLambda=r' \;\; ', spaceS=r' \;\; ',
+                      fig_scale = None
+        ):
+        tbl_fmt   = self._mk_table_format()
+
+        # ------------------------------------------------------ values
+        sigmas  = self.mk_values('sigma',  formater=formater ) if case == 'SVD' else None
+        lambdas = self.mk_values('lambda', formater=formater)
+        mas     = self.mk_values('ma',     formater=formater)
+
+        # ------------------------------------------------------ vectors
+        evecs = self.mk_vectors('evecs', formater=formater) + r' \\'
+
+        if case != 'S':
+            qvecs  = self.mk_vectors('qvecs', formater=formater, add_height=1) + r' \\'
+        else:
+            qvecs = None
+
+        # ------------------------------------------------------ matrices
+
+        if case == 'SVD':
+            lambda_matrix = self.mk_diag_matrix( 'sigma', formater=formater)
+        else:
+            lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater)
+
+        if case == 'S':
+            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater)
+        else:
+            evecs_matrix = self.mk_evecs_matrix( 'qvecs', formater=formater, add_height=1)
+
+        if   case == 'S': matrix_names=[r'\Lambda', 'S']
+        elif case == 'Q': matrix_names=[r'\Lambda', 'Q']
+        else:             matrix_names=[r'\Sigma_r', 'V_r']
+
+        if fig_scale is not None:
+            fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
+
+        return jinja2.Template( EIGPROBLEM_TEMPLATE ).render(
+                   fig_scale                = fig_scale,
+                   matrix_names             = matrix_names,
+                   table_format = tbl_fmt, color = '{'+color+'}',
+                   rule_format              = self.rule_fmt,
+                   sigmas                   = sigmas,
+                   lambdas                  = lambdas,
+                   algebraic_multiplicities = mas,
+                   eigenbasis               = evecs,
+                   orthonormal_basis        = qvecs,
+                   lambda_matrix            = lambda_matrix,
+                   evecs_matrix             = evecs_matrix
+               )
+# --------------------------------------------------------------------------------------------------
+# E = EigenProblemTable(  # requires a dictionary
+#        {
+#            'lambda': [3,           2, 1],
+#            'ma':     [2,           1, 1],
+#            'sigma':  [sym.sqrt(3), sym.sqrt(2), 1],
+#            'evecs':  [[sym.Matrix([1, 2, 1,0]), sym.Matrix([3, -1, 1,0])],   # list of lists of vectors, one for each eigenvalue
+#                       [sym.Matrix([2, 1, 2,1])],
+#                       [sym.Matrix([1, 1, 0,0])]],
+#            'qvecs':  [[sym.Matrix([1, 2, 1,0])/sym.sqrt(6), sym.Matrix([3, -1, 1,0])/sym.sqrt(11)],
+#                       [sym.Matrix([2, 1, 2,1])/sym.sqrt(10)],
+#                       [sym.Matrix([1, 1, 0,0])/sym.sqrt(2)]]
+#        }
+#  
+#  )
 
 # ==================================================================================================
 # New Examples
