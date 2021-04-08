@@ -798,13 +798,9 @@ class EigenProblemTable:
         self.eig   = eig
         if formater is not None:
            f_eig = {}
-           #l     = list( map( formater, eig['lambda']) )
-           #f_eig['lambda'] = list( map( lambda x: '$' + x + '$', l) )
            f_eig['lambda'] = list( map( formater, eig['lambda']) )
 
            if 'sigma' in eig.keys():
-              #l              = list( map( formater, eig['sigma']) )
-              #f_eig['sigma'] = list( map( lambda x: '$' + x + '$', l) )
               f_eig['sigma'] = list( map( formater, eig['sigma']) )
 
            f_eig['ma']    = eig['ma']
@@ -952,14 +948,14 @@ class EigenProblemTable:
         # ------------------------------------------------------ matrices
 
         if case == 'SVD':
-            lambda_matrix = self.mk_diag_matrix( 'sigma', formater=formater)
+            lambda_matrix = self.mk_diag_matrix( 'sigma', formater=formater, mm=mmLambda)
         else:
-            lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater)
+            lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater, mm=mmLambda)
 
         if case == 'S':
-            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater)
+            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
         else:
-            evecs_matrix = self.mk_evecs_matrix( 'qvecs', formater=formater, add_height=1)
+            evecs_matrix = self.mk_evecs_matrix( 'qvecs', formater=formater, add_height=1, mm=mmS )
 
         if   case == 'S': matrix_names=[r'\Lambda', 'S']
         elif case == 'Q': matrix_names=[r'\Lambda', 'Q']
