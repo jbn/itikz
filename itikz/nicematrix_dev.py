@@ -859,7 +859,7 @@ class EigenProblemTable:
 
     def _mk_diag_matrix( self, key='lambda', mm=8, formater=str ):
         space   = '@{\\hspace{' + str(mm) + 'mm}}'
-        pre     = r'\multicolumn{' + f'{self.N}' + '}{c}{\n'+\
+        pre     = r'\multicolumn{' + f'{len(self.eig["ma"])}' + '}{c}{\n'+\
                   r'$\begin{pNiceArray}{' + space.join( self.N*['c'] ) + '}'
         post    = r'\end{pNiceArray}$}'
 
@@ -874,7 +874,7 @@ class EigenProblemTable:
 
     def _mk_evecs_matrix( self, key='evec', formater=str, mm=0 ):
         space = '@{\\hspace{' + str(mm) + 'mm}}' if mm > 0 else ''
-        pre     = r'\multicolumn{' + f'{self.N}' + '}{c}{\n'+\
+        pre     = r'\multicolumn{' + f'{len(self.eig["ma"])}' + '}{c}{\n'+\
                   r'$\begin{pNiceArray}{' + space.join( self.N*['r'] ) + '}'
         post    = r'\end{pNiceArray}$}'
 
@@ -946,9 +946,8 @@ class EigenProblemTable:
             qvecs = None
 
         # ------------------------------------------------------ matrices
-
         if case == 'SVD':
-            lambda_matrix = self.mk_diag_matrix( 'sigma', formater=formater, mm=mmLambda)
+            lambda_matrix = self.mk_diag_matrix( 'sigma',  formater=formater, mm=mmLambda)
         else:
             lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater, mm=mmLambda)
 
