@@ -25,7 +25,7 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
 {% endif %}% lambda --------------------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
+$\color{{color}}{m_a}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
 %  eigenvectors ------------------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
 {{eigenbasis}} {% if orthonormal_basis %}
@@ -69,7 +69,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 % ============================================================================ NiceArray
 $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 {% if codebefore != [] -%}
-\CodeBefore
+\CodeBefore [create-cell-nodes]
     {% for entry in codebefore: -%}
     {{entry}}
     {% endfor -%}%
@@ -158,6 +158,7 @@ class MatrixGridLayout:
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
         self.rowechelon_paths = []
+        self.stylenames       = []
         self.codebefore       = []
         self.preamble         = '%\n'
         self.extension        = '%\n'
@@ -519,6 +520,29 @@ class MatrixGridLayout:
 
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
+
+
+    def _mk_entries( self, gM, gN, *args ):
+        tl,_,_ = self._top_left_bottom_right( gM, gN )
+
+        def mk(entry):
+            if not isinstance( entry, list):
+                return [f'({tl[0]+entry[0]+1}-{tl[1]+entry[1]+1})']
+            i1,j1 = entry[0]
+            i2,j2 = entry[-1]
+
+            return [f'({tl[0]+i+1}-{tl[1]+j+1})' for i in range(i1,i2+1) for j in range(j1,j2+1)]
+        l = [mk(entry) for entry in args]
+        return [loc for sublist in l for loc in sublist]
+
+    def nm_background( self, gM, gN, entries, style_name='highlight', color='red!15' ):
+        if style_name not in self.stylenames:
+            self.stylenames.append( style_name )
+            self.preamble = self.preamble + r'\tikzset{' + style_name + f'/.style = {{ fit = #1 , fill={color}, inner sep = 2pt }} }} %' + '\n'
+
+        for entry in entries:
+            for k in self._mk_entries( gM,gN, entry):
+                self.codebefore.append( f'\\tikz \\node [{style_name} = {k}] {{ }} ;')
 
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
