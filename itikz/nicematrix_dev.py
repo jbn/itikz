@@ -821,19 +821,20 @@ class EigenProblemTable:
 
         self.eig   = eig
         if formater is not None:
-           f_eig = {}
-           f_eig['lambda'] = list( map( formater, eig['lambda']) )
+            f_eig = {}
+            f_eig['lambda'] = [ formater(s) for s in eig['lambda'] ]
 
-           if 'sigma' in eig.keys():
-              f_eig['sigma'] = list( map( formater, eig['sigma']) )
+            if 'sigma' in eig.keys():
+                func = lambda s: formater(s) if s != 0 else ' '
+                f_eig['sigma'] = [ func(s) for s in eig['sigma'] ]
 
-           f_eig['ma']    = eig['ma']
+            f_eig['ma']    = eig['ma']
 
-           if 'evecs' in eig.keys():
-              f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
-           if 'qvecs' in eig.keys():
-              f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
-           self.eig = f_eig
+            if 'evecs' in eig.keys():
+                f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
+            if 'qvecs' in eig.keys():
+                f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
+            self.eig = f_eig
 
         self.tbl_fmt   = self._mk_table_format()
         self.rule_fmt  = self._mk_rule_format()
