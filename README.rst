@@ -11,7 +11,7 @@ itikz
 
 .. image:: https://img.shields.io/coveralls/github/jbn/itikz.svg
         :target: https://coveralls.io/github/jbn/itikz
-Cell magic for PGF/TikZ-to-SVG rendering in Jupyter
+Latex with Tikz to SVG conversion. Includes Cell magic for rendering in Jupyter
 
 * Free software: MIT license
 
