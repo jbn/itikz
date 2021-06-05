@@ -25,7 +25,7 @@ __email__ = 'jbn@abreka.com'
 __version__ = '0.1.6ea'
 
 
-IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz,dvisvgm]{standalone}
+IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
 $extras
 \begin{document}
 \begin{tikzpicture}[scale=$scale]
