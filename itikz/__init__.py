@@ -240,7 +240,7 @@ build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], us
        _tex_program = tex_program
        _svg_converter = svg_converter
     if crop:
-        _svg_crop = (["inkscape", "--export-plain-svg", "-D", "--export-margin=1", "-o"])
+        _svg_crop = (["inkscape", "--batch-process", "--export-plain-svg", "-D", "--export-margin=1", "-o"])
     else:
         _svg_crop = None
 
