@@ -714,6 +714,8 @@ def compute_qr_matrices( A, W ):
     ''' given the matrix A and the corresponding matrix W with orthogonal columns,
     compute the list of list of sympy matrices in a QR layout
     '''
+    A = sym.Matrix(A)
+    W = sym.Matrix(W)
     WtW  = W.T @ W
     WtA  = W.T @ A
     S    = sym.Matrix.diag( list( map(lambda x: 1/sym.sqrt(x), sym.Matrix.diagonal( WtW))))
