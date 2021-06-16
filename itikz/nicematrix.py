@@ -542,6 +542,14 @@ class MatrixGridLayout:
         )
 # -----------------------------------------------------------------------------------------------------
 def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
+    '''decorate terms:
+        text_color :  apply text color,           default = 'black'
+        text_bg :     apply background color,     default = None
+        boxed   :     put a box around the entry, default = False (None)
+        bf :          make the entry boldface,    default = False (None)
+        move_right : apply \\mathrlap,            default = False (None)
+        delim :      put delimiter around text,   default = None,    e.g.,  surround with in '$'
+    '''
     box_decorator         = "\\boxed<{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
@@ -633,7 +641,7 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, com
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
     array_names:      list of names for the two columns: [ 'E', ['A','b','I']
-    start_index:      first subscript for the elementart operation matrices (can be None)
+    start_index:      first subscript for the elementary operation matrices (can be None)
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
     extra_cols = None if comment_list     is None else 1
@@ -702,6 +710,22 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, com
     return h, m
 
 # ================================================================================================================================
+def compute_qr_matrices( A, W ):
+    ''' given the matrix A and the corresponding matrix W with orthogonal columns,
+    compute the list of list of sympy matrices in a QR layout
+    '''
+    WtW  = W.T @ W
+    WtA  = W.T @ A
+    S    = sym.Matrix.diag( list( map(lambda x: 1/sym.sqrt(x), sym.Matrix.diagonal( WtW))))
+
+    Qt = S*W.T
+    R  = S*WtA
+
+    matrices =  [ [ None,  None,   A,    W ],
+                  [ None,   W.T, WtA,  WtW ],
+                  [ S,       Qt,   R, None ] ]
+    return matrices
+
 def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
