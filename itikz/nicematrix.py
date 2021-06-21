@@ -2,6 +2,7 @@ import numpy as np
 import sympy as sym
 import jinja2
 import itikz
+from IPython.display import SVG
 
 # ================================================================================================================================
 extension = r''' '''
