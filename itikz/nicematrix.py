@@ -630,7 +630,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
@@ -702,12 +702,38 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, com
 
     m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
 
-    h = itikz.fetch_or_compile_svg(
+    tex_file,svg_file = itikz.svg_file_from_tex(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
         **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
         nexec=1, keep_file=keep_file )
 
-    return h, m
+
+    return m,tex_file,svg_file
+# -----------------------------------------------------------------------------------------------
+def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+    '''basic GE layout (development version):
+    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
+    pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
+    comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']
+    start_index:      first subscript for the elementary operation matrices (can be None)
+    func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
+    '''
+
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
+        start_index=start_index, func=func, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+    if svg is not None:
+        return SVG(svg), m
+
+    return None, m
 
 # ================================================================================================================================
 def compute_qr_matrices( A, W ):
@@ -728,7 +754,7 @@ def compute_qr_matrices( A, W ):
                   [ S,       Qt,   R, None ] ]
     return matrices
 
-def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
@@ -774,11 +800,22 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, k
     m_code = m.nm_latexdoc( fig_scale=fig_scale )
 
 
-    h = itikz.fetch_or_compile_svg(
+    tex_file,svg_file = itikz.svg_file_from_tex(
             m_code, prefix='qr_', working_dir=tmp_dir, debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
-    return h, m
+
+    return m,tex_file,svg_file
+# -----------------------------------------------------------------------------------------------
+def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+    m,tex_file,svg_file = _qr(matrices, formater=formater, array_names=array_names, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+    if svg is not None:
+        return SVG(svg), m
+
+    return None, m
 
 def gram_schmidt_qr( A_, W_ ):
     A = sym.Matrix( A_ )

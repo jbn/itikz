@@ -253,7 +253,7 @@ fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=Fal
     svg = svg_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
     if svg is not None:
         return SVG(svg)
-    return
+    return None
 
 def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
@@ -343,6 +343,11 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
         cleanup_artifacts(working_dir, src_hash, svg_file, tex_file)
 
     return tex_file,svg_file
+
+def html_img_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+
+    _,svg_file = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+    return f'<img src="{svg_file}">'
 
 def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
     '''
