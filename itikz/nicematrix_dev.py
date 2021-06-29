@@ -2,6 +2,7 @@ import numpy as np
 import sympy as sym
 import jinja2
 import itikz
+from IPython.display import SVG
 
 # ================================================================================================================================
 extension = r''' '''
@@ -16,33 +17,33 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \usepackage{xcolor}
 
 \begin{document}
-{% if fig_scale %}
+{%% if fig_scale %%}
 {{fig_scale}}
-{% endif %}
+{%% endif %%}
 %====================================================================
 \begin{tabular}{{table_format}} \toprule
-{% if sigmas %}% sigma -----------------------------------------------------------------
+{%% if sigmas %%}% sigma -----------------------------------------------------------------
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
-{% endif %}% lambda --------------------------------------------------------------------
+{%% endif %%}% lambda --------------------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{m_a}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
+$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
 %  eigenvectors ------------------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
-{{eigenbasis}} {% if orthonormal_basis %}
+{{eigenbasis}} {%% if orthonormal_basis %%}
 %  orthonormal eigenvectors ------------------------------------------------------------
  {{rule_format}} \addlinespace[2mm]
 {\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
 {{orthonormal_basis}}
-{% endif -%}
+{%% endif -%%}
  \addlinespace[2mm] \midrule \addlinespace[2mm]
 % ------------------------------------------------------------- lambda
 $\color{{color}}{ {{matrix_names[0]}} =}$ & {{lambda_matrix}} \\ \addlinespace[2mm]
 % ------------------------------------------------------------- Q
 $\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[2mm] \bottomrule
 \end{tabular}
-{% if fig_scale %}
+{%% if fig_scale %%}
 }
-{% endif %}
+{%% endif %%}
 \end{document}
 '''
 # =================================================================
@@ -57,54 +58,73 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage[table,svgnames]{xcolor}
 \usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
+
+\newcommand*{\colorboxed}{}
+\def\colorboxed#1#{%
+  \colorboxedAux{#1}%
+}
+\newcommand*{\colorboxedAux}[3]{%
+  % #1: optional argument for color model
+  % #2: color specification
+  % #3: formula
+  \begingroup
+    \colorlet{cb@saved}{.}%
+    \color#1{#2}%
+    \boxed{%
+      \color{cb@saved}%
+      #3%
+    }%
+  \endgroup
+}
+
 % ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}
 \begin{landscape}
-{% if fig_scale %}
+{%% if fig_scale %%}
 {{fig_scale}}
-{% endif %}
+{%% endif %%}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}%
 % ============================================================================ NiceArray
-$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
-{% if codebefore != [] -%}
+$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
+{%% if codebefore != [] -%%}[create-extra-nodes]
 \CodeBefore [create-cell-nodes]
-    {% for entry in codebefore: -%}
+    {%% for entry in codebefore: -%%}
     {{entry}}
-    {% endfor -%}%
+    {%% endfor -%%}%
 \Body
-{% endif %}%
+{%% endif -%%}
 {{mat_rep}}
 \CodeAfter %[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
 % --------------------------------------------------------------------------- submatrix delimiters
-    {% for loc in submatrix_locs: -%}
+    {%% for loc in submatrix_locs: -%%}
           \SubMatrix({{loc[1]}})[{{loc[0]}}]
-    {% endfor -%}
-    {% for txt in submatrix_names: -%}
+    {%% endfor -%%}
+    {%% for txt in submatrix_names: -%%}
           {{txt}}
-    {% endfor -%}
+    {%% endfor -%%}
 % --------------------------------------------------------------------------- pivot outlines
 \begin{tikzpicture}
     \begin{scope}[every node/.style = draw]
-    {% for loc in pivot_locs: -%}
+    {%% for loc in pivot_locs: -%%}
         \node [draw,{{loc[1]}},fit = {{loc[0]}}]  {} ;
-    {% endfor -%}
+    {%% endfor -%%}
     \end{scope}
 %
 % --------------------------------------------------------------------------- explanatory text
-    {% for loc,txt,c in txt_with_locs: -%}
+    {%% for loc,txt,c in txt_with_locs: -%%}
         \node [right,align=left,color={{c}}] at {{loc}}  {\qquad {{txt}} } ;
-    {% endfor -%}
+    {%% endfor -%%}
 %
 % --------------------------------------------------------------------------- row echelon form path
-    {% for t in rowechelon_paths %} {{t}}
-    {% endfor -%}
+    {%% for t in rowechelon_paths %%} {{t}}
+    {%% endfor -%%}
 \end{tikzpicture}
 \end{NiceArray}$
-{% if fig_scale %}
+{%% if fig_scale %%}
 }
-{% endif %}
+{%% endif %%}
 \end{landscape}
 \end{document}
 '''
@@ -158,7 +178,6 @@ class MatrixGridLayout:
         self.adjust_positions( extra_cols, extra_rows )
         self.txt_with_locs    = []
         self.rowechelon_paths = []
-        self.stylenames       = []
         self.codebefore       = []
         self.preamble         = '%\n'
         self.extension        = '%\n'
@@ -442,6 +461,19 @@ class MatrixGridLayout:
 
             self.array_names = array_names
 
+    def nm_background(self, gM,gN, loc_list, color='red!15', pt=0):
+        '''add background color to a list of entries'''
+        tl,_,_ = self._top_left_bottom_right( gM, gN )
+        for entry in loc_list:
+            cmd_1 = f'\\tikz \\node [fill={color}, inner sep = {pt}pt, fit = '
+            if not isinstance( entry, list):
+                cmd_2  =  f'({tl[0]+entry[0]+1}-{tl[1]+entry[1]+1}-medium)'
+            else:
+                cmd_2  =  f'({tl[0]+entry[0][0]+1}-{tl[1]+entry[0][1]+1}-medium) ({tl[0]+entry[1][0]+1}-{tl[1]+entry[1][1]+1}-medium)'
+            cmd_3 = ' ] {} ;'
+            self.codebefore.append( cmd_1 + cmd_2 + cmd_3 )
+
+
     def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
         assert( self.extra_cols[-1] != 0 )
@@ -521,36 +553,14 @@ class MatrixGridLayout:
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
         self.rowechelon_paths.append( cmd )
 
-
-    def _mk_entries( self, gM, gN, *args ):
-        tl,_,_ = self._top_left_bottom_right( gM, gN )
-
-        def mk(entry):
-            if not isinstance( entry, list):
-                return [f'({tl[0]+entry[0]+1}-{tl[1]+entry[1]+1})']
-            i1,j1 = entry[0]
-            i2,j2 = entry[-1]
-
-            return [f'({tl[0]+i+1}-{tl[1]+j+1})' for i in range(i1,i2+1) for j in range(j1,j2+1)]
-        l = [mk(entry) for entry in args]
-        return [loc for sublist in l for loc in sublist]
-
-    def nm_background( self, gM, gN, entries, style_name='highlight', color='red!15' ):
-        if style_name not in self.stylenames:
-            self.stylenames.append( style_name )
-            self.preamble = self.preamble + r'\tikzset{' + style_name + f'/.style = {{ fit = #1 , fill={color}, inner sep = 2pt }} }} %' + '\n'
-
-        for entry in entries:
-            for k in self._mk_entries( gM,gN, entry):
-                self.codebefore.append( f'\\tikz \\node [{style_name} = {k}] {{ }} ;')
-
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
 
     def nm_latexdoc( self, template = GE_TEMPLATE, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
-        return jinja2.Template( template ).render( \
+        return jinja2.Template( template, block_start_string='{%%', block_end_string='%%}',
+                                          comment_start_string='{##', comment_end_string='##}' ).render( \
                 preamble        = self.preamble,
                 fig_scale       = fig_scale,
                 extension       = self.extension,
@@ -565,8 +575,18 @@ class MatrixGridLayout:
                 codebefore      = self.codebefore,
         )
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
+def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, box_color=None, bf=None, move_right=False, delim=None ):
+    '''decorate terms:
+        text_color :  apply text color,                   default = 'black'
+        text_bg :     apply background color,             default = None
+        boxed   :     put a box around the entry,         default = False (None)
+        box_color:    put a colored box around the entry, default = False (None)
+        bf :          make the entry boldface,            default = False (None)
+        move_right :  apply \\mathrlap,                   default = False (None)
+        delim :       put delimiter around text,          default = None,    e.g.,  surround with in '$'
+    '''
     box_decorator         = "\\boxed<{a}>"
+    coloredbox_decorator  = "\\colorboxed<{color}><{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bg_color_decorator    = "\\colorbox<{color}><{a}>"
@@ -579,6 +599,8 @@ def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None,
         x = bf_decorator.format(a=x)
     if boxed is not None:
         x = box_decorator.format( a=x )
+    if box_color is not None:
+        x = coloredbox_decorator.format( a=x, color=box_color )
     if bg_color is not None:
         x = bg_color_decorator.format(a=x, color=bg_color)
     if text_bg is not None:
@@ -646,18 +668,19 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
     array_names:      list of names for the two columns: [ 'E', ['A','b','I']
-    start_index:      first subscript for the elementart operation matrices (can be None)
+    start_index:      first subscript for the elementary operation matrices (can be None)
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
     extra_cols = None if comment_list     is None else 1
@@ -712,21 +735,70 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, com
     m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
     m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
 
+    if bg_for_entries is not None:
+        for spec in bg_for_entries:
+            m.nm_background( *spec )
+
     if ref_path_list is not None:
         for spec in ref_path_list:
             m.nm_add_rowechelon_path( *spec )
 
     m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
 
-    h = itikz.fetch_or_compile_svg(
+    tex_file,svg_file = itikz.svg_file_from_tex(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
         **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
         nexec=1, keep_file=keep_file )
 
-    return h, m
+
+    return m,tex_file,svg_file
+# -----------------------------------------------------------------------------------------------
+def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+    '''basic GE layout (development version):
+    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
+    pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
+    comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']
+    start_index:      first subscript for the elementary operation matrices (can be None)
+    func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
+    '''
+
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, bg_for_entries=bg_for_entries, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
+        start_index=start_index, func=func, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+    if svg is not None:
+        return SVG(svg), m
+
+    return None, m
 
 # ================================================================================================================================
-def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def compute_qr_matrices( A, W ):
+    ''' given the matrix A and the corresponding matrix W with orthogonal columns,
+    compute the list of list of sympy matrices in a QR layout
+    '''
+    A    = sym.Matrix(A)
+    W    = sym.Matrix(W)
+    WtW  = W.T @ W
+    WtA  = W.T @ A
+    S    = sym.Matrix.diag( list( map(lambda x: 1/sym.sqrt(x), sym.Matrix.diagonal( WtW))))
+
+    Qt = S*W.T
+    R  = S*WtA
+
+    matrices =  [ [ None,  None,   A,    W ],
+                  [ None,   W.T, WtA,  WtW ],
+                  [ S,       Qt,   R, None ] ]
+    return matrices
+
+def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
@@ -772,11 +844,22 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, k
     m_code = m.nm_latexdoc( fig_scale=fig_scale )
 
 
-    h = itikz.fetch_or_compile_svg(
+    tex_file,svg_file = itikz.svg_file_from_tex(
             m_code, prefix='qr_', working_dir=tmp_dir, debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
-    return h, m
+
+    return m,tex_file,svg_file
+# -----------------------------------------------------------------------------------------------
+def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+    m,tex_file,svg_file = _qr(matrices, formater=formater, array_names=array_names, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+    if svg is not None:
+        return SVG(svg), m
+
+    return None, m
 
 def gram_schmidt_qr( A_, W_ ):
     A = sym.Matrix( A_ )
@@ -821,20 +904,19 @@ class EigenProblemTable:
 
         self.eig   = eig
         if formater is not None:
-            f_eig = {}
-            f_eig['lambda'] = [ formater(s) for s in eig['lambda'] ]
+           f_eig = {}
+           f_eig['lambda'] = list( map( formater, eig['lambda']) )
 
-            if 'sigma' in eig.keys():
-                func = lambda s: formater(s) if s != 0 else ' '
-                f_eig['sigma'] = [ func(s) for s in eig['sigma'] ]
+           if 'sigma' in eig.keys():
+              f_eig['sigma'] = list( map( formater, eig['sigma']) )
 
-            f_eig['ma']    = eig['ma']
+           f_eig['ma']    = eig['ma']
 
-            if 'evecs' in eig.keys():
-                f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
-            if 'qvecs' in eig.keys():
-                f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
-            self.eig = f_eig
+           if 'evecs' in eig.keys():
+              f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
+           if 'qvecs' in eig.keys():
+              f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
+           self.eig = f_eig
 
         self.tbl_fmt   = self._mk_table_format()
         self.rule_fmt  = self._mk_rule_format()
@@ -988,7 +1070,8 @@ class EigenProblemTable:
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
 
-        return jinja2.Template( EIGPROBLEM_TEMPLATE ).render(
+        return jinja2.Template( EIGPROBLEM_TEMPLATE, block_start_string='{%%', block_end_string='%%}',
+                                          comment_start_string='{##', comment_end_string='##}' ).render( \
                    fig_scale                = fig_scale,
                    matrix_names             = matrix_names,
                    table_format = tbl_fmt, color = '{'+color+'}',
