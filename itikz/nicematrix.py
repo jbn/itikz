@@ -16,7 +16,7 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \usepackage{nicematrix}
 \usepackage{xcolor}
 
-\begin{document}
+\begin{document}\begin{minipage}{\textwidth}
 {% if fig_scale %}
 {{fig_scale}}
 {% endif %}
@@ -44,7 +44,7 @@ $\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[
 {% if fig_scale %}
 }
 {% endif %}
-\end{document}
+\end{minipage}\end{document}
 '''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
@@ -60,7 +60,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usetikzlibrary{calc,fit,decorations.markings}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
-\begin{document}
+\begin{document}\begin{minipage}{\textwidth}
 \begin{landscape}
 {% if fig_scale %}
 {{fig_scale}}
@@ -107,7 +107,7 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 }
 {% endif %}
 \end{landscape}
-\end{document}
+\end{minipage}\end{document}
 '''
 # ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
