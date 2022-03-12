@@ -297,18 +297,22 @@ class MatrixGridLayout:
     def matrix_array_format( N, p_str='I', vpartitions=None):
         '''format string for a matrix with N columns'''
         if vpartitions is None:
-            return f"*{N}r"
+            return N*"r"
+            #return f"*{N}r"
         s     = ""
         cur   = 0
         for p in vpartitions:
-            s += f"*{p-cur}r{p_str}"
+            s_r = (p-cur)*"r"
+            s += f"{s_r}{p_str}"
+            #s += f"*{p-cur}r{p_str}"
             cur = p
         if cur < N:
-            s += f"*{N-cur}r"
+            s += (N-cur)*"r"
+            #s += f"*{N-cur}r"
         return s
 
     #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2c m}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
