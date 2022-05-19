@@ -32,6 +32,9 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
     ],
     description="Cell magic for PGF/TikZ-to-SVG rendering in Jupyter",
     entry_points={
@@ -49,7 +52,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/jbn/itikz',
-    version='0.1.5',
+    url='https://github.com/ea42gh/itikz',
+    version='0.1.6',
     zip_safe=False,
 )
