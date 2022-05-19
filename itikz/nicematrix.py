@@ -17,33 +17,33 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \usepackage{xcolor}
 
 \begin{document}\begin{minipage}{\textwidth}
-{% if fig_scale %}
+{%% if fig_scale %%}
 {{fig_scale}}
-{% endif %}
+{%% endif %%}
 %====================================================================
 \begin{tabular}{{table_format}} \toprule
-{% if sigmas %}% sigma -----------------------------------------------------------------
+{%% if sigmas %%}% sigma -------------------------------------------------------
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
-{% endif %}% lambda --------------------------------------------------------------------
+{%% endif %%}% lambda ----------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
-%  eigenvectors ------------------------------------------------------------------------
+$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}} {{rule_format}} \addlinespace[1mm]
+%  eigenvectors --------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
-{{eigenbasis}} {% if orthonormal_basis %}
-%  orthonormal eigenvectors ------------------------------------------------------------
+{{eigenbasis}} {%% if orthonormal_basis %%}
+%  orthonormal eigenvectors --------------------------------------------------
  {{rule_format}} \addlinespace[2mm]
 {\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
 {{orthonormal_basis}}
-{% endif -%}
+{%% endif -%%}
  \addlinespace[2mm] \midrule \addlinespace[2mm]
 % ------------------------------------------------------------- lambda
 $\color{{color}}{ {{matrix_names[0]}} =}$ & {{lambda_matrix}} \\ \addlinespace[2mm]
 % ------------------------------------------------------------- Q
 $\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[2mm] \bottomrule
 \end{tabular}
-{% if fig_scale %}
+{%% if fig_scale %%}
 }
-{% endif %}
+{%% endif %%}
 \end{minipage}\end{document}
 '''
 # =================================================================
@@ -58,6 +58,26 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage[table,svgnames]{xcolor}
 \usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
+
+{% raw %}
+\newcommand*{\colorboxed}{}
+\def\colorboxed#1#{%
+  \colorboxedAux{#1}%
+}
+\newcommand*{\colorboxedAux}[3]{%
+  % #1: optional argument for color model
+  % #2: color specification
+  % #3: formula
+  \begingroup
+    \colorlet{cb@saved}{.}%
+    \color#1{#2}%
+    \boxed{%
+      \color{cb@saved}%
+      #3%
+    }%
+  \endgroup
+}
+{% endraw %}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}\begin{minipage}{\textwidth}
@@ -70,7 +90,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 % ============================================================================ NiceArray
 $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
 {% if codebefore != [] -%}
-\CodeBefore
+\CodeBefore[create-cell-nodes]
     {% for entry in codebefore: -%}
     {{entry}}
     {% endfor -%}%
@@ -312,7 +332,7 @@ class MatrixGridLayout:
         return s
 
     #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2c m}}' ):
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
@@ -446,6 +466,19 @@ class MatrixGridLayout:
 
             self.array_names = array_names
 
+    def nm_background(self, gM,gN, loc_list, color='red!15', pt=0):
+        '''add background color to a list of entries'''
+        tl,_,_ = self._top_left_bottom_right( gM, gN )
+        for entry in loc_list:
+            cmd_1 = f'\\tikz \\node [fill={color}, inner sep = {pt}pt, fit = '
+            if not isinstance( entry, list):
+                cmd_2  =  f'({tl[0]+entry[0]+1}-{tl[1]+entry[1]+1}-medium)'
+            else:
+                cmd_2  =  f'({tl[0]+entry[0][0]+1}-{tl[1]+entry[0][1]+1}-medium) ({tl[0]+entry[1][0]+1}-{tl[1]+entry[1][1]+1}-medium)'
+            cmd_3 = ' ] {} ;'
+            self.codebefore.append( cmd_1 + cmd_2 + cmd_3 )
+
+
     def nm_text(self, txt_list, color='violet'):
         '''add text add each layer (requires a right-most extra col)'''
         assert( self.extra_cols[-1] != 0 )
@@ -528,16 +561,17 @@ class MatrixGridLayout:
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
 
-    def nm_latexdoc( self, template = GE_TEMPLATE, fig_scale=None ):
+    def nm_latexdoc( self, template=GE_TEMPLATE, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
-        return jinja2.Template( template ).render( \
+        return jinja2.Template( template, block_start_string='{%', block_end_string='%}',
+                                          comment_start_string='{#', comment_end_string='#}' ).render( \
                 preamble        = self.preamble,
                 fig_scale       = fig_scale,
                 extension       = self.extension,
                 mat_rep         = '\n'.join( self.tex_list ),
                 mat_format      = '{'+self.format+'}',
-                mat_options     = '',
+                mat_options     = '[create-medium-nodes]',
                 submatrix_locs  = self.locs,
                 submatrix_names = self.array_names,
                 pivot_locs      = [],
@@ -546,16 +580,18 @@ class MatrixGridLayout:
                 codebefore      = self.codebefore,
         )
 # -----------------------------------------------------------------------------------------------------
-def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, bf=None, move_right=False, delim=None ):
+def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None, box_color=None, bf=None, move_right=False, delim=None ):
     '''decorate terms:
-        text_color :  apply text color,           default = 'black'
-        text_bg :     apply background color,     default = None
-        boxed   :     put a box around the entry, default = False (None)
-        bf :          make the entry boldface,    default = False (None)
-        move_right : apply \\mathrlap,            default = False (None)
-        delim :      put delimiter around text,   default = None,    e.g.,  surround with in '$'
+        text_color :  apply text color,                   default = 'black'
+        text_bg :     apply background color,             default = None
+        boxed   :     put a box around the entry,         default = False (None)
+        box_color:    put a colored box around the entry, default = False (None)
+        bf :          make the entry boldface,            default = False (None)
+        move_right :  apply \\mathrlap,                   default = False (None)
+        delim :       put delimiter around text,          default = None,    e.g.,  surround with in '$'
     '''
     box_decorator         = "\\boxed<{a}>"
+    coloredbox_decorator  = "\\colorboxed<{color}><{a}>"
     color_decorator       = "\\Block[draw={text_color},fill={bg_color}]<><{a}>"
     txt_color_decorator   = "\\color<{color}><{a}>"
     bg_color_decorator    = "\\colorbox<{color}><{a}>"
@@ -568,6 +604,8 @@ def make_decorator( text_color='black', bg_color=None, text_bg=None, boxed=None,
         x = bf_decorator.format(a=x)
     if boxed is not None:
         x = box_decorator.format( a=x )
+    if box_color is not None:
+        x = coloredbox_decorator.format( a=x, color=box_color )
     if bg_color is not None:
         x = bg_color_decorator.format(a=x, color=bg_color)
     if text_bg is not None:
@@ -635,13 +673,14 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -701,11 +740,15 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, co
     m.nm_submatrix_locs('A',color='blue',name_specs=name_specs) # this defines the submatrices (the matrix delimiters)
     m.tex_repr()                                                # converts the array of TeX entries into strings with separators and spacers
 
+    if bg_for_entries is not None:
+        for spec in bg_for_entries:
+            m.nm_background( *spec )
+
     if ref_path_list is not None:
         for spec in ref_path_list:
             m.nm_add_rowechelon_path( *spec )
 
-    m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
+    m_code = m.nm_latexdoc(template=GE_TEMPLATE, fig_scale=fig_scale )
 
     tex_file,svg_file = itikz.svg_file_from_tex(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
@@ -715,13 +758,14 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, co
 
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -730,7 +774,7 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, ref_path_list=None, com
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
 
-    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, bg_for_entries=bg_for_entries, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
         start_index=start_index, func=func, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
 
     with open(svg_file, "r") as fp:
@@ -1031,7 +1075,8 @@ class EigenProblemTable:
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
 
-        return jinja2.Template( EIGPROBLEM_TEMPLATE ).render(
+        return jinja2.Template( EIGPROBLEM_TEMPLATE, block_start_string='{%%', block_end_string='%%}',
+                                          comment_start_string='{##', comment_end_string='##}' ).render( \
                    fig_scale                = fig_scale,
                    matrix_names             = matrix_names,
                    table_format = tbl_fmt, color = '{'+color+'}',
