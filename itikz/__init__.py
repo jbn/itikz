@@ -211,7 +211,7 @@ build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], us
                 else:
                     #print("EXA  case 2")
                     #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
-                    _tex_program = ["latexmk", "--quiet", "--silent", "--xelatex" ]
+                    _tex_program = ["latexmk", "-quiet", "-silent", "-xelatex" ]
                     _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
             else:
                 if nexec > 1:
@@ -222,18 +222,18 @@ build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], us
                 else:
                     #print("EXA  case 4")
                     #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
-                    _tex_program = ["latexmk", "--quiet", "--silent", "--xelatex" ]
+                    _tex_program = ["latexmk", "-quiet", "-silent", "-xelatex" ]
                     _svg_converter = [["pdf2svg"], ".pdf"]
         else:
             if use_dvi is True:
                 #print("EXA  case 5")
                 #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-dvi" ]
-                _tex_program = ["latexmk", "--quiet", "--silent", "-dvi" ]
+                _tex_program = ["latexmk", "-quiet", "-silent", "-dvi" ]
                 _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".dvi"]
             else:
                 #print("EXA  case 6")
                 #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-pdf" ]
-                _tex_program = ["latexmk", "--quiet", "--silent", "-pdf" ]
+                _tex_program = ["latexmk", "-quiet", "-silent", "-pdf" ]
                 _svg_converter = [["pdf2svg"], ".pdf"]
     else:
        #print("EXA  case 7")

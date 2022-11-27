@@ -16,7 +16,7 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \usepackage{nicematrix}
 \usepackage{xcolor}
 
-\begin{document}
+\begin{document}\begin{minipage}{\textwidth}
 {%% if fig_scale %%}
 {{fig_scale}}
 {%% endif %%}
@@ -44,7 +44,7 @@ $\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[
 {%% if fig_scale %%}
 }
 {%% endif %%}
-\end{document}
+\end{minipage}\end{document}
 '''
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
@@ -79,7 +79,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 
 % ---------------------------------------------------------------------------- extension
 {{extension}}
-\begin{document}
+\begin{document}\begin{minipage}{\textwidth}
 \begin{landscape}
 {%% if fig_scale %%}
 {{fig_scale}}
@@ -126,7 +126,7 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
 }
 {%% endif %%}
 \end{landscape}
-\end{document}
+\end{minipage}\end{document}
 '''
 # ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
@@ -316,14 +316,18 @@ class MatrixGridLayout:
     def matrix_array_format( N, p_str='I', vpartitions=None):
         '''format string for a matrix with N columns'''
         if vpartitions is None:
-            return f"*{N}r"
+            return N*"r"
+            #return f"*{N}r"
         s     = ""
         cur   = 0
         for p in vpartitions:
-            s += f"*{p-cur}r{p_str}"
+            s_r = (p-cur)*"r"
+            s += f"{s_r}{p_str}"
+            #s += f"*{p-cur}r{p_str}"
             cur = p
         if cur < N:
-            s += f"*{N-cur}r"
+            s += (N-cur)*"r"
+            #s += f"*{N-cur}r"
         return s
 
     #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
