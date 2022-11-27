@@ -22,15 +22,15 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 {%% endif %%}
 %====================================================================
 \begin{tabular}{{table_format}} \toprule
-{%% if sigmas %%}% sigma -----------------------------------------------------------------
+{%% if sigmas %%}% sigma -------------------------------------------------------
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
-{%% endif %%}% lambda --------------------------------------------------------------------
+{%% endif %%}% lambda ----------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
-%  eigenvectors ------------------------------------------------------------------------
+$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}} {{rule_format}} \addlinespace[1mm]
+%  eigenvectors --------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
 {{eigenbasis}} {%% if orthonormal_basis %%}
-%  orthonormal eigenvectors ------------------------------------------------------------
+%  orthonormal eigenvectors --------------------------------------------------
  {{rule_format}} \addlinespace[2mm]
 {\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
 {{orthonormal_basis}}
@@ -59,6 +59,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \usepackage{nicematrix,tikz}
 \usetikzlibrary{calc,fit,decorations.markings}
 
+{% raw %}
 \newcommand*{\colorboxed}{}
 \def\colorboxed#1#{%
   \colorboxedAux{#1}%
@@ -76,55 +77,55 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
     }%
   \endgroup
 }
-
+{% endraw %}
 % ---------------------------------------------------------------------------- extension
 {{extension}}
 \begin{document}\begin{minipage}{\textwidth}
 \begin{landscape}
-{%% if fig_scale %%}
+{% if fig_scale %}
 {{fig_scale}}
-{%% endif %%}
+{% endif %}
 % ---------------------------------------------------------------------------- preamble
 {{preamble}}%
 % ============================================================================ NiceArray
-$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
-{%% if codebefore != [] -%%}[create-extra-nodes]
-\CodeBefore [create-cell-nodes]
-    {%% for entry in codebefore: -%%}
+$\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}
+{% if codebefore != [] -%}
+\CodeBefore[create-cell-nodes]
+    {% for entry in codebefore: -%}
     {{entry}}
-    {%% endfor -%%}%
+    {% endfor -%}%
 \Body
-{%% endif -%%}
+{% endif %}%
 {{mat_rep}}
 \CodeAfter %[ sub-matrix / extra-height=2mm, sub-matrix / xshift=2mm ]
 % --------------------------------------------------------------------------- submatrix delimiters
-    {%% for loc in submatrix_locs: -%%}
+    {% for loc in submatrix_locs: -%}
           \SubMatrix({{loc[1]}})[{{loc[0]}}]
-    {%% endfor -%%}
-    {%% for txt in submatrix_names: -%%}
+    {% endfor -%}
+    {% for txt in submatrix_names: -%}
           {{txt}}
-    {%% endfor -%%}
+    {% endfor -%}
 % --------------------------------------------------------------------------- pivot outlines
 \begin{tikzpicture}
     \begin{scope}[every node/.style = draw]
-    {%% for loc in pivot_locs: -%%}
+    {% for loc in pivot_locs: -%}
         \node [draw,{{loc[1]}},fit = {{loc[0]}}]  {} ;
-    {%% endfor -%%}
+    {% endfor -%}
     \end{scope}
 %
 % --------------------------------------------------------------------------- explanatory text
-    {%% for loc,txt,c in txt_with_locs: -%%}
+    {% for loc,txt,c in txt_with_locs: -%}
         \node [right,align=left,color={{c}}] at {{loc}}  {\qquad {{txt}} } ;
-    {%% endfor -%%}
+    {% endfor -%}
 %
 % --------------------------------------------------------------------------- row echelon form path
-    {%% for t in rowechelon_paths %%} {{t}}
-    {%% endfor -%%}
+    {% for t in rowechelon_paths %} {{t}}
+    {% endfor -%}
 \end{tikzpicture}
 \end{NiceArray}$
-{%% if fig_scale %%}
+{% if fig_scale %}
 }
-{%% endif %%}
+{% endif %}
 \end{landscape}
 \end{minipage}\end{document}
 '''
@@ -560,17 +561,17 @@ class MatrixGridLayout:
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
 
-    def nm_latexdoc( self, template = GE_TEMPLATE, fig_scale=None ):
+    def nm_latexdoc( self, template=GE_TEMPLATE, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
-        return jinja2.Template( template, block_start_string='{%%', block_end_string='%%}',
-                                          comment_start_string='{##', comment_end_string='##}' ).render( \
+        return jinja2.Template( template, block_start_string='{%', block_end_string='%}',
+                                          comment_start_string='{#', comment_end_string='#}' ).render( \
                 preamble        = self.preamble,
                 fig_scale       = fig_scale,
                 extension       = self.extension,
                 mat_rep         = '\n'.join( self.tex_list ),
                 mat_format      = '{'+self.format+'}',
-                mat_options     = '',
+                mat_options     = '[create-medium-nodes]',
                 submatrix_locs  = self.locs,
                 submatrix_names = self.array_names,
                 pivot_locs      = [],
@@ -747,7 +748,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         for spec in ref_path_list:
             m.nm_add_rowechelon_path( *spec )
 
-    m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
+    m_code = m.nm_latexdoc(template=GE_TEMPLATE, fig_scale=fig_scale )
 
     tex_file,svg_file = itikz.svg_file_from_tex(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
