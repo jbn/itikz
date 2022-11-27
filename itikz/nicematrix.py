@@ -26,8 +26,8 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
 {%% endif %%}% lambda --------------------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}} {{rule_format}} \addlinespace[1mm]
-%  eigenvectors --------------------------------------------------------------
+$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
+%  eigenvectors ------------------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
 {{eigenbasis}} {%% if orthonormal_basis %%}
 %  orthonormal eigenvectors ------------------------------------------------------------
@@ -88,7 +88,7 @@ GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 {{preamble}}%
 % ============================================================================ NiceArray
 $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
-{%% if codebefore != [] -%%}[create-extra-nodes]
+{%% if codebefore != [] -%%}
 \CodeBefore [create-cell-nodes]
     {%% for entry in codebefore: -%%}
     {{entry}}
@@ -560,7 +560,7 @@ class MatrixGridLayout:
     def apply( self, func,  *args, **kwargs ):
         func( self, *args, **kwargs )
 
-    def nm_latexdoc( self, template=GE_TEMPLATE, fig_scale=None ):
+    def nm_latexdoc( self, template = GE_TEMPLATE, fig_scale=None ):
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
         return jinja2.Template( template, block_start_string='{%%', block_end_string='%%}',
@@ -570,7 +570,7 @@ class MatrixGridLayout:
                 extension       = self.extension,
                 mat_rep         = '\n'.join( self.tex_list ),
                 mat_format      = '{'+self.format+'}',
-                mat_options     = '[create-medium-nodes]',
+                mat_options     = '[create-extra-nodes,create-medium-nodes]',
                 submatrix_locs  = self.locs,
                 submatrix_names = self.array_names,
                 pivot_locs      = [],
@@ -747,7 +747,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         for spec in ref_path_list:
             m.nm_add_rowechelon_path( *spec )
 
-    m_code = m.nm_latexdoc(template=GE_TEMPLATE, fig_scale=fig_scale )
+    m_code = m.nm_latexdoc(template = GE_TEMPLATE, fig_scale=fig_scale )
 
     tex_file,svg_file = itikz.svg_file_from_tex(
         m_code, prefix='ge_', working_dir=tmp_dir, debug=False,
