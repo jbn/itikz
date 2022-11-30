@@ -865,7 +865,7 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, k
 
     return None, m
 
-def gram_schmidt_qr( A_, W_ ):
+def gram_schmidt_qr( A_, W_, fig_scale=None ):
     A = sym.Matrix( A_ )
     W = sym.Matrix( W_ )
 
@@ -881,7 +881,7 @@ def gram_schmidt_qr( A_, W_ ):
     matrices =  [ [ None,  None,   A,    W ],
                   [ None,   W.T, WtA,  WtW ],
                   [ S,       Qt,   R, None ] ]
-    h,m = qr( matrices, formater=sym.latex, array_names=True, tmp_dir="tmp" )
+    h,m = qr( matrices, formater=sym.latex, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
     return h,m
 
 # ==================================================================================================
@@ -1113,8 +1113,11 @@ def eig_tbl(A):
         eig['evecs'].insert(0,vecs)
     return EigenProblemTable( eig, formater=sym.latex )
 
-def show_eig_tbl(A, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
+def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
     E = eig_tbl(A)
+    if Ascale is not None:
+        E.eig[ 'lambda' ] = [ str(int(e)//Ascale) for e in E.eig[ 'lambda' ]]
+
     svd_code = E.nm_latex_doc( formater=str, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
