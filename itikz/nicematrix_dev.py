@@ -865,7 +865,7 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, k
 
     return None, m
 
-def gram_schmidt_qr( A_, W_ ):
+def gram_schmidt_qr( A_, W_, fig_scale=None ):
     A = sym.Matrix( A_ )
     W = sym.Matrix( W_ )
 
@@ -881,7 +881,7 @@ def gram_schmidt_qr( A_, W_ ):
     matrices =  [ [ None,  None,   A,    W ],
                   [ None,   W.T, WtA,  WtW ],
                   [ S,       Qt,   R, None ] ]
-    h,m = qr( matrices, formater=sym.latex, array_names=True, tmp_dir="tmp" )
+    h,m = qr( matrices, formater=sym.latex, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
     return h,m
 
 # ==================================================================================================
@@ -1016,11 +1016,14 @@ class EigenProblemTable:
 
     def mk_evecs_matrix( self, key, formater=str, mm=8,extra_space='', add_height=0  ):
         pre, m, post = self._mk_evecs_matrix(key=key, formater=formater, mm=mm )
-        for i in range(m.shape[0]):
-            m[i,0] = extra_space+m[i,0]
-            m[i,self.N-1]=m[i,self.N-1]+extra_space
+        if m.shape[1] == self.N:
+            for i in range(m.shape[0]):
+                m[i,0] = extra_space+m[i,0]
+                m[i,self.N-1]=m[i,self.N-1]+extra_space
 
-        return self._fmt_matrix( pre, m, post, add_height )
+            return self._fmt_matrix( pre, m, post, add_height )
+        else:
+            return m
 
     def decorate_values(self, l, decorate, i=None ):
         if i is not None:
@@ -1060,12 +1063,18 @@ class EigenProblemTable:
         if case == 'SVD':
             lambda_matrix = self.mk_diag_matrix( 'sigma',  formater=formater, mm=mmLambda)
         else:
-            lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater, mm=mmLambda)
+            try:
+                lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater, mm=mmLambda)
+            except:
+                Lambda  = np.empty( (0,0) )
 
         if case == 'S':
-            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
+            try:
+                evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
+            except:
+                evecs_matrix  = np.empty( (0,0))
         else:
-            evecs_matrix = self.mk_evecs_matrix( 'qvecs', formater=formater, add_height=1, mm=mmS )
+            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
 
         if   case == 'S': matrix_names=[r'\Lambda', 'S']
         elif case == 'Q': matrix_names=[r'\Lambda', 'Q']
@@ -1104,8 +1113,11 @@ def eig_tbl(A):
         eig['evecs'].insert(0,vecs)
     return EigenProblemTable( eig, formater=sym.latex )
 
-def show_eig_tbl(A, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
+def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
     E = eig_tbl(A)
+    if Ascale is not None:
+        E.eig[ 'lambda' ] = [ str(int(e)//Ascale) for e in E.eig[ 'lambda' ]]
+
     svd_code = E.nm_latex_doc( formater=str, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
