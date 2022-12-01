@@ -240,6 +240,26 @@ def test_rasterize_bad_input(itikz_magic):
     assert res is None
 
 
+def test_rasterize_and_dpi_good_input(itikz_magic):
+    pic = r"\node[draw] at (0,0) {Hello World};"
+    src = "\\begin{tikzpicture}\n" + pic + "\n\\end{tikzpicture}\n"
+    cmd = "--implicit-standalone --tex-packages=tikz --temp-dir --rasterize --dpi=200"
+    res = itikz_magic.itikz(cmd, src)
+    assert isinstance(res, Image)
+
+
+def test_rasterize_and_dpi_bad_input(itikz_magic):
+    cmd = "--temp-dir --rasterize --dpi=200"
+    res = itikz_magic.itikz(cmd, BAD_TIKZ)
+    assert res is None
+
+
+def test_dpi_no_rasterize_implicit_pic(itikz_magic):
+    src = r"\node[draw] at (0,0) {Hello World};"
+    res = itikz_magic.itikz("--implicit-pic --dpi=200 --temp-dir", src)
+    assert isinstance(res, SVG)
+
+
 def test_rasterize_no_cairo_svg(itikz_magic, monkeypatch, capsys):
     monkeypatch.setattr(itikz, 'CAIROSVG_ENABLED', False)
 

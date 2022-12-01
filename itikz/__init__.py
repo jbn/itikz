@@ -97,6 +97,10 @@ def parse_args(line):
                         action='store_true', default=False,
                         help="Rasterize the svg with cairosvg")
 
+    parser.add_argument('--dpi', dest='dpi',
+                        default='',
+                        help="DPI passed to cairosvg.svg2png when 'rasterize' is used")
+
     parser.add_argument('--full-error', dest='full_err',
                         action='store_true', default=False,
                         help="Emit the full error message")
@@ -236,7 +240,9 @@ class TikZMagics(Magics):
                 print("$ pip install cairosvg", file=sys.stderr)
                 return
 
-            png_bytes = cairosvg.svg2png(bytestring=svg.data.encode())
+            raster_args = {"dpi": float(args.dpi)} if args.dpi else {}
+
+            png_bytes = cairosvg.svg2png(bytestring=svg.data.encode(), **raster_args)
 
             return Image(data=png_bytes)
 
