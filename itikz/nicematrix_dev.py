@@ -20,17 +20,19 @@ EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 {%% if fig_scale %%}
 {{fig_scale}}
 {%% endif %%}
-%====================================================================
+% ----------------------------------------------------------------------------------------
+{{preamble}}%
+%=========================================================================================
 \begin{tabular}{{table_format}} \toprule
 {%% if sigmas %%}% sigma -----------------------------------------------------------------
 $\color{{color}}{\sigma}$ & {{sigmas}}  {{rule_format}}
 {%% endif %%}% lambda --------------------------------------------------------------------
 $\color{{color}}{\lambda}$ & {{lambdas}} {{rule_format}}
-$\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
-%  eigenvectors ------------------------------------------------------------------------
+$\color{{color}}{m_a}$ & {{algebraic_multiplicities}}  {{rule_format}} \addlinespace[1mm]
+%  eigenvectors --------------------------------------------------------------------------
 {\parbox{2cm}{\textcolor{{color}}{basis for $\color{{color}}{E_\lambda}$}}} &
 {{eigenbasis}} {%% if orthonormal_basis %%}
-%  orthonormal eigenvectors ------------------------------------------------------------
+%  orthonormal eigenvectors --------------------------------------------------------------
  {{rule_format}} \addlinespace[2mm]
 {\parbox{2cm}{\textcolor{{color}}{orthonormal basis for $E_\lambda$}}} &
 {{orthonormal_basis}}
@@ -38,8 +40,14 @@ $\color{{color}}{\left( m_a \right)}$ & {{algebraic_multiplicities}}  {{rule_for
  \addlinespace[2mm] \midrule \addlinespace[2mm]
 % ------------------------------------------------------------- lambda
 $\color{{color}}{ {{matrix_names[0]}} =}$ & {{lambda_matrix}} \\ \addlinespace[2mm]
-% ------------------------------------------------------------- Q
-$\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[2mm] \bottomrule
+% ------------------------------------------------------------- E or Q
+{%% if evecs_matrix %%}%
+$\color{{color}}{ {{matrix_names[1]}} = }$ & {{evecs_matrix}} \\  \addlinespace[2mm] %\bottomrule
+{%% endif -%%}
+% ------------------------------------------------------------- U
+{%% if left_singular_matrix %%}%
+$\color{{color}}{ {{matrix_names[2]}} = }$ & {{left_singular_matrix}} \\  \addlinespace[2mm] \bottomrule
+{%% endif -%%}
 \end{tabular}
 {%% if fig_scale %%}
 }
@@ -892,7 +900,7 @@ class EigenProblemTable:
         Indexing is zero-based.
     '''
 
-    def __init__(self, eig, formater=None ):
+    def __init__(self, eig, formater=None, sz=None ):
         '''
         eig:  dictionary with entries
               'lambda'        :    distinct eigenvalues
@@ -900,9 +908,13 @@ class EigenProblemTable:
               'ma'            :    corresponding algebraic multiplicites
               'evecs'         :    list of mg vectors for each eigenvalue
               'qvecs'         :    list of mg orthonormal vectors for each eigenvalue
+              'uvecs'         :    list of mg orthonormal vectors for each singular value
+              'sz'            :    size (M,N) of the matrix needed for the SVD table
         '''
 
         self.N     = sum(eig['ma'])
+        self.sz    = (self.N,self.N) if sz is None else sz
+
         self.ncols = 2*len(eig['lambda'])-1
         self.color = "blue"
 
@@ -920,6 +932,9 @@ class EigenProblemTable:
               f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
            if 'qvecs' in eig.keys():
               f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
+           if 'uvecs' in eig.keys():
+              f_eig['uvecs'] = self._mk_vectors('uvecs', formater=formater )
+
            self.eig = f_eig
 
         self.tbl_fmt   = self._mk_table_format()
@@ -937,7 +952,10 @@ class EigenProblemTable:
 
     def _mk_values( self, key='lambda', formater=str ):
         l = list( map( formater, self.eig[key]) )
+        if key == 'sigma' and self.eig[key][-1] == '0':
+            l[-1] = formater(' ')
         l = list( map( lambda x: '$'+x+'$', l) )
+
         ll=[l[0]]
         for i in l[1:]:
             ll.append('')
@@ -974,22 +992,28 @@ class EigenProblemTable:
                   r'$\begin{pNiceArray}{' + space.join( self.N*['c'] ) + '}'
         post    = r'\end{pNiceArray}$}'
 
-        Lambda  = np.full( (self.N,self.N), formater(0), dtype=object)
+        Lambda  = np.full( self.sz, formater(0), dtype=object)
         lambdas = []
         for i,v in enumerate( self.eig['ma'] ):
-            lambdas += v*[self.eig[key][i]]
+            l       = self.eig[key][i]
+            lambdas += v*[l]
+
         for i,v in enumerate(lambdas):
-            Lambda[i,i] = formater(v)
+            try:
+                Lambda[i,i] = formater(v)
+            except:
+                break
 
         return pre,Lambda,post
 
-    def _mk_evecs_matrix( self, key='evec', formater=str, mm=0 ):
-        space = '@{\\hspace{' + str(mm) + 'mm}}' if mm > 0 else ''
+    def _mk_evecs_matrix( self, key='evecs', formater=str, mm=0 ):
+        sz      = self.sz[0] if key == 'uvecs' else self.sz[1]
+        space   = '@{\\hspace{' + str(mm) + 'mm}}' if mm > 0 else ''
         pre     = r'\multicolumn{' + f'{len(self.eig["ma"])}' + '}{c}{\n'+\
-                  r'$\begin{pNiceArray}{' + space.join( self.N*['r'] ) + '}'
+                  r'$\begin{pNiceArray}{' + space.join( sz*['r'] ) + '}'
         post    = r'\end{pNiceArray}$}'
 
-        S  = np.empty( (self.N,self.N), dtype=object)
+        S  = np.empty( (sz,sz), dtype=object)
         j  = 0
         for vecs in self.eig[key]:
             for vec in vecs:
@@ -1010,16 +1034,17 @@ class EigenProblemTable:
     def mk_diag_matrix( self, key, formater=str, mm=8, extra_space='', add_height=0 ):
         pre, m, post = self._mk_diag_matrix(key=key, formater=formater, mm=mm )
         for i in range(m.shape[0]):
-            m[i,0] = extra_space+m[i,0]
-            m[i,self.N-1]=m[i,self.N-1]+extra_space
+            m[i,0]        = extra_space+m[i,0]
+            m[i,self.N-1] = m[i,self.N-1]+extra_space
         return self._fmt_matrix( pre, m, post, add_height=add_height )
 
     def mk_evecs_matrix( self, key, formater=str, mm=8,extra_space='', add_height=0  ):
         pre, m, post = self._mk_evecs_matrix(key=key, formater=formater, mm=mm )
-        if m.shape[1] == self.N:
+        sz = self.sz[0] if key == 'uvecs' else self.sz[1]
+        if m.shape[1] == sz:
             for i in range(m.shape[0]):
                 m[i,0] = extra_space+m[i,0]
-                m[i,self.N-1]=m[i,self.N-1]+extra_space
+                m[i,m.shape[1]-1]=m[i,m.shape[1]-1]+extra_space
 
             return self._fmt_matrix( pre, m, post, add_height )
         else:
@@ -1054,37 +1079,53 @@ class EigenProblemTable:
         # ------------------------------------------------------ vectors
         evecs = self.mk_vectors('evecs', formater=formater) + r' \\'
 
-        if case != 'S':
+        qvecs = None
+        uvecs = None
+
+        if case == 'Q':
             qvecs  = self.mk_vectors('qvecs', formater=formater, add_height=1) + r' \\'
-        else:
-            qvecs = None
+        elif case == 'SVD':
+            qvecs  = self.mk_vectors('qvecs', formater=formater, add_height=1) + r' \\'
+            try:
+                uvecs  = self.mk_vectors('uvecs', formater=formater, add_height=1) + r' \\'
+            except:
+                uvecs  = None
 
         # ------------------------------------------------------ matrices
+        left_singular_matrix = None
+
         if case == 'SVD':
             lambda_matrix = self.mk_diag_matrix( 'sigma',  formater=formater, mm=mmLambda)
         else:
             try:
                 lambda_matrix = self.mk_diag_matrix( 'lambda', formater=formater, mm=mmLambda)
             except:
-                Lambda  = np.empty( (0,0) )
+                lambda_matrix = None
 
         if case == 'S':
             try:
                 evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
             except:
-                evecs_matrix  = np.empty( (0,0))
+                evecs_matrix  = None
         else:
-            evecs_matrix = self.mk_evecs_matrix( 'evecs', formater=formater, mm=mmS )
+            evecs_matrix = self.mk_evecs_matrix( 'qvecs', formater=formater, mm=mmS )
+            if case == 'SVD':
+                try:
+                    left_singular_matrix = self.mk_evecs_matrix( 'uvecs', formater=formater, mm=mmS )
+                except:
+                    left_singular_matrix = None
 
         if   case == 'S': matrix_names=[r'\Lambda', 'S']
         elif case == 'Q': matrix_names=[r'\Lambda', 'Q']
-        else:             matrix_names=[r'\Sigma_r', 'V_r']
+        else:             matrix_names=[r'\Sigma',  'V', 'U']
 
+        # ------------------------------------------------------ figure scaling
         if fig_scale is not None:
             fig_scale = r'\scalebox{'+str(fig_scale)+'}{%'
 
         return jinja2.Template( EIGPROBLEM_TEMPLATE, block_start_string='{%%', block_end_string='%%}',
                                           comment_start_string='{##', comment_end_string='##}' ).render( \
+                   preamble                 = r" \NiceMatrixOptions{cell-space-limits = 1pt}"+'\n',
                    fig_scale                = fig_scale,
                    matrix_names             = matrix_names,
                    table_format = tbl_fmt, color = '{'+color+'}',
@@ -1094,6 +1135,7 @@ class EigenProblemTable:
                    algebraic_multiplicities = mas,
                    eigenbasis               = evecs,
                    orthonormal_basis        = qvecs,
+                   left_singular_matrix     = left_singular_matrix,
                    lambda_matrix            = lambda_matrix,
                    evecs_matrix             = evecs_matrix
                )
@@ -1113,7 +1155,7 @@ def eig_tbl(A):
         eig['evecs'].insert(0,vecs)
     return EigenProblemTable( eig, formater=sym.latex )
 
-def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
+def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
     E = eig_tbl(A)
     if Ascale is not None:
         E.eig[ 'lambda' ] = [ str(int(e)//Ascale) for e in E.eig[ 'lambda' ]]
@@ -1123,37 +1165,62 @@ def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=0.8, color='blue'
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
-            nexec=1, keep_file="tmp/svd" )
+            nexec=1, keep_file=keep_file )
     return h
 # --------------------------------------------------------------------------------------------------
 def svd_tbl(A):
-    A = sym.Matrix(A)
+    A   = sym.Matrix(A)
     eig = {
         'sigma':  [],
         'lambda': [],
         'ma':     [],
         'evecs':  [],
-        'qvecs':  []
+        'qvecs':  [],
+        'uvecs':  []
     }
-    AtA = A.transpose() @ A
+    def mySVD(A):
+        def q_gram_schmidt( v_list ):
+            W = []
+            for j in range( len( v_list )):
+                w_j = v_list[j]
+                for k in range( j-1 ):
+                    w_j = w_j - W[k].dot( v_list[j]) * W[k]
+                W.append(1/w_j.norm() * w_j)
+            return W
 
-    res = AtA.eigenvects()
-    for e,m,vecs in res:
-        eig['lambda'].insert(0,e)
-        eig['sigma'].insert(0,sym.sqrt(e))
-        eig['ma'].insert(0,m)
-        eig['evecs'].insert(0,vecs)
-    eig['qvecs']=eig['evecs']
-    return EigenProblemTable( eig, formater=sym.latex )
+        def sort_eig_vec(sym_eig_vec):
+            sort_eig_vecs = sorted(sym_eig_vec, key=lambda x: x[0], reverse=True)
 
-def show_svd_table(A, mmS=10, mmLambda=8, fig_scale=0.8, color='blue' ):
+            for i in sort_eig_vecs:
+                sigma = sym.sqrt(i[0])
+                eig['sigma'].append(sigma)
+
+                eig['lambda'].append( i[0] )
+                eig['ma'].append( i[1] )
+                eig['evecs'].append( i[2] )
+                vvecs = q_gram_schmidt( i[2] )
+                eig['qvecs'].append( vvecs )
+
+                if not sigma.is_zero:
+                    eig['uvecs'].append( [ 1/sigma * A * v for v in vvecs] )
+
+        sort_eig_vec((A.T @ A).eigenvects())
+        ns = A.T.nullspace()
+        if len(ns) > 0:
+            ns_on_basis = q_gram_schmidt( ns )
+            eig['uvecs'].append( ns_on_basis )
+
+    mySVD(A)
+    return EigenProblemTable( eig, formater=sym.latex, sz=A.shape )
+
+def show_svd_table(A, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
     E = svd_tbl(A)
     svd_code = E.nm_latex_doc( formater=str, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
     
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
-            nexec=1, keep_file="tmp/svd" )
+            nexec=1, keep_file=keep_file )
     return h
 # --------------------------------------------------------------------------------------------------
 # E = EigenProblemTable(  # requires a dictionary
