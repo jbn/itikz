@@ -9,6 +9,29 @@ extension = r''' '''
 # -----------------------------------------------------------------
 preamble = r''' '''
 # =================================================================
+BACKSUBST_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
+\pagestyle{empty}
+\usepackage[margin=0cm]{geometry}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{cascade}
+%\usepackage{systeme}
+
+\begin{document}\begin{minipage}{\textwidth}
+{%% if fig_scale %%}
+\scalebox{ {{fig_scale}} }{%
+{%% endif %%}
+%====================================================================
+{%% for line in cascade -%%}
+{{line}}
+{%% endfor -%%}
+%====================================================================
+{%% if fig_scale %%}
+}
+{%% endif %%}
+\end{minipage}\end{document}
+'''
+# =================================================================
 EIGPROBLEM_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \pagestyle{empty}
 \usepackage{booktabs}
@@ -891,6 +914,96 @@ def gram_schmidt_qr( A_, W_, fig_scale=None ):
                   [ S,       Qt,   R, None ] ]
     h,m = qr( matrices, formater=sym.latex, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
     return h,m
+
+# ==================================================================================================
+# BACKSUBSTITUTION
+# ==================================================================================================
+class BacksubstitutionCascade:
+    def __init__(self, ref_A, ref_rhs = None ):
+        self.ref_syseq( ref_A, ref_rhs=ref_rhs)
+
+    def ref_syseq(self, ref_A, ref_rhs = None ):
+        self.A   = sym.Matrix(ref_A)
+        self.rhs = None if ref_rhs is None else sym.Matrix( ref_rhs )
+
+        self.rref_A, self.pivot_cols = self.A.rref()
+        self.free_cols = [ i for i in range(ref_A.shape[1]) if i not in self.pivot_cols]
+        self.rank      = len(    self.pivot_cols)
+
+    def ref_rhs( self, rhs ):
+        self.rhs = None if rhs is None else sym.Matrix( rhs )
+
+    @staticmethod
+    def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
+        """givem a row, generate the right hand terms from A_ref for the back substitution algorithm"""
+
+        t = sym.Integer(0) if rhs is None else rhs[pivot_col] 
+        for j in range(pivot_col+1, ref_A.shape[1]):
+            t = t - ref_A[pivot_row,j]*sym.Symbol(f"{name}_{j+1}")
+
+        if t.is_zero: return f" 0 "
+
+        factor = 1/ref_A[pivot_row,pivot_col]
+
+        if   factor ==  1: return(sym.latex(t))
+        elif factor == -1: return f"- \\left( {sym.latex(t)} \\right)"
+        else:              return f"{sym.latex(factor)} \\left( {sym.latex(t)} \\right)"
+
+    def _gen_back_subst_eqs( self ):
+        """generate the equations for the back substitution algorithm"""
+
+        alpha = r'\alpha'
+        x     = 'x'
+        bs    = []
+        if len(self.free_cols) > 0:
+            bs.append( ','.join([f"x_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
+            start = self.rank-1
+        else:
+            bs.append( f"x_{self.rank} = {BacksubstitutionCascade._bs_equation(self.A,self.rank-1,self.pivot_cols[-1], self.rhs, name=alpha )}")
+            start = self.rank-2
+
+        for i in range(start,-1, -1):
+            bs.append( [
+                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(     self.A,i,self.pivot_cols[i], self.rhs, name=x )}",
+                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rhs, name=alpha )}"
+            ])
+        return bs
+
+    @staticmethod
+    def _mk_cascade( bs ):
+        def mk_args( bs ):
+            mbs = [ f"   {{$\\boxed{{ {bs[0]}  }}$}}%" ]
+            for term in bs[1:]:
+                mbs.append( [f"   {{${term[0]}$}}%", f"   {{$\;\Rightarrow\; \\boxed{{ {term[1]} }}$}}%"])
+            return mbs
+
+        mbs   = mk_args(bs)
+        num_c = len(mbs)-1
+        lines = num_c*[ r"{\ShortCascade%"]
+        lines.append( mbs[0] )
+        for i in range(num_c):
+            lines.extend( mbs[i+1] )
+            lines.append( r"}%")
+    
+        return lines
+
+    def nm_latex_doc( self, fig_scale=None ):
+        bsA = self._gen_back_subst_eqs()
+
+        return jinja2.Template( BACKSUBST_TEMPLATE, block_start_string='{%%', block_end_string='%%}',
+                 comment_start_string='{##', comment_end_string='##}' ).render( \
+                 cascade = BacksubstitutionCascade._mk_cascade(bsA),
+                 fig_scale=fig_scale
+               )
+
+    def show(self, fig_scale=None, keep_file=None ):
+        code = self.nm_latex_doc( fig_scale=fig_scale)
+
+        h = itikz.fetch_or_compile_svg(
+                code, prefix='backsubst_', working_dir="tmp", debug=False,
+                **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
+                nexec=1, keep_file=keep_file )
+        return h
 
 # ==================================================================================================
 # EigenProblem Tables
