@@ -922,6 +922,12 @@ class BacksubstitutionCascade:
     def __init__(self, ref_A, ref_rhs = None ):
         self.ref_syseq( ref_A, ref_rhs=ref_rhs)
 
+    @classmethod
+    def from_ref_Ab(cls, ref_Ab):
+        """create `cls` from augmented row echelon form matrix Ab"""
+        ref_Ab = sym.Matrix( ref_Ab )
+        return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
+
     def ref_syseq(self, ref_A, ref_rhs = None ):
         self.A   = sym.Matrix(ref_A)
         self.rhs = None if ref_rhs is None else sym.Matrix( ref_rhs )
@@ -933,11 +939,14 @@ class BacksubstitutionCascade:
     def ref_rhs( self, rhs ):
         self.rhs = None if rhs is None else sym.Matrix( rhs )
 
+    def ref_Ab( self, Ab ):
+        Ab = sym.Matrix( Ab )
+        self.ref_syseq( ref_Ab[:,0:-1], ref_Ab[:,-1] )
+
     @staticmethod
     def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
         """givem a row, generate the right hand terms from A_ref for the back substitution algorithm"""
-
-        t = sym.Integer(0) if rhs is None else rhs[pivot_col] 
+        t = sym.Integer(0) if rhs is None else rhs[pivot_row] 
         for j in range(pivot_col+1, ref_A.shape[1]):
             t = t - ref_A[pivot_row,j]*sym.Symbol(f"{name}_{j+1}")
 
@@ -956,7 +965,7 @@ class BacksubstitutionCascade:
         x     = 'x'
         bs    = []
         if len(self.free_cols) > 0:
-            bs.append( ','.join([f"x_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
+            bs.append( ',\\;'.join([f"x_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
             start = self.rank-1
         else:
             bs.append( f"x_{self.rank} = {BacksubstitutionCascade._bs_equation(self.A,self.rank-1,self.pivot_cols[-1], self.rhs, name=alpha )}")
@@ -1281,7 +1290,7 @@ def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue'
             nexec=1, keep_file=keep_file )
     return h
 # --------------------------------------------------------------------------------------------------
-def svd_tbl(A):
+def svd_tbl(A, Ascale=None):
     A   = sym.Matrix(A)
     eig = {
         'sigma':  [],
@@ -1292,6 +1301,7 @@ def svd_tbl(A):
         'uvecs':  []
     }
     def mySVD(A):
+        A = sym.Matrix(A)
         def q_gram_schmidt( v_list ):
             W = []
             for j in range( len( v_list )):
@@ -1305,10 +1315,11 @@ def svd_tbl(A):
             sort_eig_vecs = sorted(sym_eig_vec, key=lambda x: x[0], reverse=True)
 
             for i in sort_eig_vecs:
-                sigma = sym.sqrt(i[0])
+                e = i[0] if Ascale is None else i[0] / (Ascale*Ascale)
+                sigma = sym.sqrt(e)
                 eig['sigma'].append(sigma)
 
-                eig['lambda'].append( i[0] )
+                eig['lambda'].append( e )
                 eig['ma'].append( i[1] )
                 eig['evecs'].append( i[2] )
                 vvecs = q_gram_schmidt( i[2] )
@@ -1317,8 +1328,8 @@ def svd_tbl(A):
                 if not sigma.is_zero:
                     eig['uvecs'].append( [ 1/sigma * A * v for v in vvecs] )
 
-        sort_eig_vec((A.T @ A).eigenvects())
-        ns = A.T.nullspace()
+        sort_eig_vec((A.transpose() * A).eigenvects())
+        ns = A.transpose().nullspace()
         if len(ns) > 0:
             ns_on_basis = q_gram_schmidt( ns )
             eig['uvecs'].append( ns_on_basis )
@@ -1326,8 +1337,8 @@ def svd_tbl(A):
     mySVD(A)
     return EigenProblemTable( eig, formater=sym.latex, sz=A.shape )
 
-def show_svd_table(A, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
-    E = svd_tbl(A)
+def show_svd_table(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+    E = svd_tbl(A, Ascale=Ascale)
     svd_code = E.nm_latex_doc( formater=str, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
     
     h = itikz.fetch_or_compile_svg(
