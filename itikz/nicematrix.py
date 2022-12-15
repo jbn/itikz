@@ -15,16 +15,37 @@ BACKSUBST_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \usepackage{mathtools}
 \usepackage{amssymb}
 \usepackage{cascade}
-%\usepackage{systeme}
+\usepackage{systeme}
+\usepackage{nicematrix}
 
 \begin{document}\begin{minipage}{\textwidth}
 {%% if fig_scale %%}
 \scalebox{ {{fig_scale}} }{%
 {%% endif %%}
+% ----------------------------------------------------------------------------------------
+{{preamble}}%
 %====================================================================
-{%% for line in cascade -%%}
+{%% if show_system %%}
+{{system_txt}}
+{%% endif %%}
+%====================================================================
+{%% if show_cascade %%}
+{%% if show_system %%}
+\vspace{1cm}
+
+{%% endif %%}
+{%% for line in cascade_txt -%%}
 {{line}}
 {%% endfor -%%}
+{%% endif %%}
+%====================================================================
+{%% if show_solution %%}
+{%% if show_system or show_cascade %%}
+\vspace{1cm}
+
+{%% endif %%}
+{{solution_txt}}
+{%% endif %%}
 %====================================================================
 {%% if fig_scale %%}
 }
@@ -930,7 +951,7 @@ class BacksubstitutionCascade:
 
     def ref_syseq(self, ref_A, ref_rhs = None ):
         self.A   = sym.Matrix(ref_A)
-        self.rhs = None if ref_rhs is None else sym.Matrix( ref_rhs )
+        self.rhs = None if ref_rhs is None else sym.Matrix( ref_rhs ).reshape( self.A.shape[0], 1 )
 
         self.rref_A, self.pivot_cols = self.A.rref()
         self.free_cols = [ i for i in range(ref_A.shape[1]) if i not in self.pivot_cols]
@@ -978,6 +999,91 @@ class BacksubstitutionCascade:
             ])
         return bs
 
+    def particular_solution(self):
+        p = sym.Matrix.zeros( self.rref_A.shape[1], 1)
+        ps = self.A[0:self.rank,self.pivot_cols]**-1 * self.rhs[0:self.rank,0]
+        for i,c in enumerate(self.pivot_cols):
+            p[c,0] = ps[i,0]
+        return p
+
+    def homogeneous_solution(self):
+        hs = sym.Matrix.zeros( self.rref_A.shape[1], len(self.free_cols))
+
+        for (i,col) in enumerate(self.free_cols):
+            hs[col,i] = 1
+        for (i,col) in enumerate(self.pivot_cols):
+            hs[col, :] = -self.rref_A[i,self.free_cols]
+        return hs
+
+    def _gen_solution_eqs( self ):
+        """generate the solution equations"""
+        #lft = r" \left( \begin{array}{r} " 
+        #rgt = r" \end{array} \right)"
+        lft = r'\begin{pNiceArray}{r}'
+        rgt = r'\end{pNiceArray}'
+
+        x = lft + r" \\ ".join( [f" x_{i+1}" for i in range(self.A.shape[1]) ] ) + rgt
+ 
+        if self.rhs is None:
+            p    = ""
+            plus = ""
+        else:
+            ps   = self.particular_solution()
+            p    = lft + r" \\ ".join( [ sym.latex(ps[i,0])  for i in range(self.A.shape[1]) ] ) + rgt
+            plus = " + " if len(self.free_cols) > 0 else ""
+
+        if len(self.free_cols) > 0:
+            hs = self.homogeneous_solution()
+            h_txt = []
+            for j,jv in enumerate( self.free_cols ):
+                h = f"\\alpha_{jv+1} "  + lft +  r" \\ ".join( [ sym.latex(hs[i,j])  for i in range(self.A.shape[1]) ] ) + rgt
+                h_txt.append( h )
+
+            h_txt = " + ".join(h_txt)
+        else:
+            h_txt=""
+
+        return "$ " + x + " = " + p + plus + h_txt + " $"
+
+    @staticmethod
+    def gen_system_eqs( A, b ):
+        """generate the system equations"""
+        var = set()
+        def mk( j, v ):
+            var.add(f"x_{j}")
+            try:
+                if v > 0:
+                    if v ==  1: s = [" + ",                 f"x_{j}" ]
+                    else:       s = [" + ", sym.latex( v ), f"x_{j}" ]
+                elif v < 0:
+                    if v == -1: s = [" - ",                 f"x_{j}" ]
+                    else:       s = [" - ", sym.latex(-v ), f"x_{j}" ]
+                else:
+                    s = [""]
+            except:
+                vs = sym.latex(v)
+                if vs.find("+") < 0 or vs.find("-") < 0:
+                    s = [ " + ", "( ", vs.replace("+",r"\+").replace("-",r"\-"), " ) ", f"x_{j}" ]
+                else:
+                    s = [ " + ", sym.latex(v), f"x_{j}" ]
+
+            return s
+
+        A   = sym.Matrix( A )
+        b   = sym.Matrix( b ).reshape( A.shape[0], 1 )
+        eqs = []
+        for i in range( A.shape[0] ):
+            terms = []
+            for j in range( A.shape[1] ):
+                if not A[i,j].is_zero:
+                    terms.extend( mk( j+1, A[i,j] ))
+
+            if len(terms) == 0: terms = [" 0 "]
+            if terms[0] == " + ":
+                terms = terms[1:]
+            eqs.append( "".join( terms ) + " = " + sym.latex( b[i,0] ) )
+        return r"\sysdelim.\}\systeme[" + "".join(sorted(var)) + "]{ " + ",".join( eqs ) + "}"
+
     @staticmethod
     def _mk_cascade( bs ):
         def mk_args( bs ):
@@ -993,20 +1099,40 @@ class BacksubstitutionCascade:
         for i in range(num_c):
             lines.extend( mbs[i+1] )
             lines.append( r"}%")
-    
+
         return lines
 
-    def nm_latex_doc( self, fig_scale=None ):
-        bsA = self._gen_back_subst_eqs()
+    def nm_latex_doc( self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None ):
+        if show_system:
+           if A is None or b is None:
+               system_txt = BacksubstitutionCascade.gen_system_eqs( self.A, self.rhs )
+           else:
+               system_txt = BacksubstitutionCascade.gen_system_eqs( A, b )
+        else:
+           system_txt = None
+
+        if show_cascade:
+            bsA         = self._gen_back_subst_eqs()
+            cascade_txt = BacksubstitutionCascade._mk_cascade(bsA)  # why at times is this a tuple with a list entry?????  FIX
+        else:
+            cascade_txt = None
+
+        if show_solution:
+            solution_txt = self._gen_solution_eqs()
+        else:
+            solution_txt = None
 
         return jinja2.Template( BACKSUBST_TEMPLATE, block_start_string='{%%', block_end_string='%%}',
                  comment_start_string='{##', comment_end_string='##}' ).render( \
-                 cascade = BacksubstitutionCascade._mk_cascade(bsA),
-                 fig_scale=fig_scale
+                 preamble       = r" \NiceMatrixOptions{cell-space-limits = 1pt}"+'\n',
+                 show_system    = show_system,  system_txt   = system_txt,
+                 show_cascade   = show_cascade, cascade_txt  = cascade_txt[0] if type(cascade_txt) is tuple else cascade_txt,
+                 show_solution  = show_solution,solution_txt = solution_txt,
+                 fig_scale      = fig_scale
                )
 
-    def show(self, fig_scale=None, keep_file=None ):
-        code = self.nm_latex_doc( fig_scale=fig_scale)
+    def show(self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None, keep_file=None ):
+        code = self.nm_latex_doc( A=A, b=b, show_system=show_system, show_cascade=show_cascade, show_solution=show_solution, fig_scale=fig_scale)
 
         h = itikz.fetch_or_compile_svg(
                 code, prefix='backsubst_', working_dir="tmp", debug=False,
@@ -1340,7 +1466,7 @@ def svd_tbl(A, Ascale=None):
 def show_svd_table(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
     E = svd_tbl(A, Ascale=Ascale)
     svd_code = E.nm_latex_doc( formater=str, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
-    
+
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
