@@ -231,7 +231,7 @@ class MatrixGridLayout:
         self.txt_with_locs    = []
         self.rowechelon_paths = []
         self.codebefore       = []
-        self.preamble         = '%\n'
+        self.preamble         = '\n' + r" \NiceMatrixOptions{cell-space-limits = 1pt}"+'\n'
         self.extension        = '%\n'
 
     def adjust_positions( self, extra_cols=None, extra_rows=None ):
