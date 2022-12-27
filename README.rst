@@ -23,11 +23,13 @@ a directory in your PYTHONPATH.
 
 Prerequisites:
 
-* a working TeX installation
+* a working TeX installation, e.g., https://tug.org/texlive/windows.html
 * a recent version of François Pantigny's nicematrix package https://ctan.org/pkg/nicematrix
-* inkscape
-* pdf2svg
+  (a current tex installation works)
+* inkscape   (ensure inkscape is on the path)
+* pdf2svg    (https://github.com/jalios/pdf2svg-windows  enure the selected directory is on the path)
 
+Install itikz with `python setup.py install`
 
 To see the directories in your pythonpath, execute the following in python:
 
