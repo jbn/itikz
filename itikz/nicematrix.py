@@ -725,7 +725,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
 def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -810,7 +810,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
 def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -854,7 +854,7 @@ def compute_qr_matrices( A, W ):
                   [ S,       Qt,   R, None ] ]
     return matrices
 
-def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
@@ -907,7 +907,7 @@ def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, 
 
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
-def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", keep_file=None):
     m,tex_file,svg_file = _qr(matrices, formater=formater, array_names=array_names, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
 
     with open(svg_file, "r") as fp:
