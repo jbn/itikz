@@ -698,7 +698,9 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
             return ' '.join([f' {lhs}' for k in range(i,0,-1)])
         else:
             return ' '.join([f' {lhs}_{k+start_index-1}' for k in range(i,0,-1)])
-    def pa(e_prod):
+    def pa(e_prod,i):
+        if i > 0 and rhs[-1] == 'I':
+            rhs[-1] = ''
         return r' \mid '.join( [e_prod+' '+k for k in rhs ])
 
     for i in range(n):
@@ -708,7 +710,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
             names[i,0] = f'{lhs}_{start_index+i-1}'
 
         e_prod = pe(i)
-        names[i,1] = pa(e_prod)
+        names[i,1] = pa(e_prod,i)
 
     if len(rhs) > 1:
         for i in range(n):
@@ -725,7 +727,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
 def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -774,12 +776,15 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         typ     = []
         var     = []
         for (i,basic) in enumerate(variable_summary):
-            if basic:
+            if basic is True:
                 typ.append(red(r'\Uparrow'))
                 var.append(red( f'x_{i+1}'))
-            else:
+            elif basic is False:
                 typ.append(blue(r'\uparrow'))
                 var.append(blue( f'x_{i+1}'))
+            else:
+                typ.append(blue(''))
+                var.append(blue(''))
         m.add_row_below(m.nGridRows-1,1,typ,           formater=lambda a: a )
         m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
 
@@ -810,7 +815,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
 def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir=None, keep_file=None ):
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
@@ -854,7 +859,7 @@ def compute_qr_matrices( A, W ):
                   [ S,       Qt,   R, None ] ]
     return matrices
 
-def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", keep_file=None):
     m = MatrixGridLayout( matrices, extra_rows = [1,0,0,0])
     m.preamble = preamble + '\n' + r" \NiceMatrixOptions{cell-space-limits = 2pt}"+'\n'
 
@@ -907,7 +912,7 @@ def _qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, 
 
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
-def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir=None, keep_file=None):
+def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", keep_file=None):
     m,tex_file,svg_file = _qr(matrices, formater=formater, array_names=array_names, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
 
     with open(svg_file, "r") as fp:

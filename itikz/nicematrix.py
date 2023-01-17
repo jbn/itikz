@@ -698,7 +698,9 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
             return ' '.join([f' {lhs}' for k in range(i,0,-1)])
         else:
             return ' '.join([f' {lhs}_{k+start_index-1}' for k in range(i,0,-1)])
-    def pa(e_prod):
+    def pa(e_prod,i):
+        if i > 0 and rhs[-1] == 'I':
+            rhs[-1] = ''
         return r' \mid '.join( [e_prod+' '+k for k in rhs ])
 
     for i in range(n):
@@ -708,7 +710,7 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
             names[i,0] = f'{lhs}_{start_index+i-1}'
 
         e_prod = pe(i)
-        names[i,1] = pa(e_prod)
+        names[i,1] = pa(e_prod,i)
 
     if len(rhs) > 1:
         for i in range(n):
@@ -774,12 +776,15 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         typ     = []
         var     = []
         for (i,basic) in enumerate(variable_summary):
-            if basic:
+            if basic is True:
                 typ.append(red(r'\Uparrow'))
                 var.append(red( f'x_{i+1}'))
-            else:
+            elif basic is False:
                 typ.append(blue(r'\uparrow'))
                 var.append(blue( f'x_{i+1}'))
+            else:
+                typ.append(blue(''))
+                var.append(blue(''))
         m.add_row_below(m.nGridRows-1,1,typ,           formater=lambda a: a )
         m.add_row_below(m.nGridRows-1,1,var, offset=1, formater=lambda a: a )
 
