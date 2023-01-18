@@ -1406,14 +1406,14 @@ def eig_tbl(A):
         eig['lambda'].insert(0,e)
         eig['ma'].insert(0,m)
         eig['evecs'].insert(0,vecs)
-    return EigenProblemTable( eig, formater=sym.latex )
+    return EigenProblemTable( eig )
 
 def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
     E = eig_tbl(A)
     if Ascale is not None:
-        E.eig[ 'lambda' ] = [ str(int(e)//Ascale) for e in E.eig[ 'lambda' ]]
+        E.eig[ 'lambda' ] = [ e/Ascale for e in E.eig[ 'lambda' ]]
 
-    svd_code = E.nm_latex_doc( formater=str, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
+    svd_code = E.nm_latex_doc( formater=sym.latex, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
@@ -1466,11 +1466,11 @@ def svd_tbl(A, Ascale=None):
             eig['uvecs'].append( ns_on_basis )
 
     mySVD(A)
-    return EigenProblemTable( eig, formater=sym.latex, sz=A.shape )
+    return EigenProblemTable( eig, sz=A.shape )
 
 def show_svd_table(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
     E = svd_tbl(A, Ascale=Ascale)
-    svd_code = E.nm_latex_doc( formater=str, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
+    svd_code = E.nm_latex_doc( formater=sym.latex, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
