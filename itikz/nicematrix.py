@@ -1175,22 +1175,20 @@ class EigenProblemTable:
         self._round( eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits )
 
         if formater is not None:
-           f_eig = {}
-           f_eig['lambda'] = list( map( formater, eig['lambda']) )
+           self.eig['lambda'] = list( map( formater, eig['lambda']) )
 
            if 'sigma' in eig.keys():
-              f_eig['sigma'] = list( map( formater, eig['sigma']) )
+              self.eig['sigma'] = list( map( formater, eig['sigma']) )
 
-           f_eig['ma']    = eig['ma']
+           self.eig['ma']    = eig['ma']
 
            if 'evecs' in eig.keys():
-              f_eig['evecs'] = self._mk_vectors('evecs', formater=formater )
+              self.eig['evecs'] = self._mk_vectors('evecs', formater=formater )
            if 'qvecs' in eig.keys():
-              f_eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
+              self.eig['qvecs'] = self._mk_vectors('qvecs', formater=formater )
            if 'uvecs' in eig.keys():
-              f_eig['uvecs'] = self._mk_vectors('uvecs', formater=formater )
+              self.eig['uvecs'] = self._mk_vectors('uvecs', formater=formater )
 
-           self.eig = f_eig
 
         self.tbl_fmt   = self._mk_table_format()
         self.rule_fmt  = self._mk_rule_format()
