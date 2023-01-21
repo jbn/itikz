@@ -922,7 +922,7 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", 
 
     return None, m
 
-def gram_schmidt_qr( A_, W_, fig_scale=None ):
+def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None ):
     A = sym.Matrix( A_ )
     W = sym.Matrix( W_ )
 
@@ -938,7 +938,7 @@ def gram_schmidt_qr( A_, W_, fig_scale=None ):
     matrices =  [ [ None,  None,   A,    W ],
                   [ None,   W.T, WtA,  WtW ],
                   [ S,       Qt,   R, None ] ]
-    h,m = qr( matrices, formater=sym.latex, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
+    h,m = qr( matrices, formater=formater, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
     return h,m
 
 # ==================================================================================================
@@ -1153,7 +1153,7 @@ class EigenProblemTable:
         Indexing is zero-based.
     '''
 
-    def __init__(self, eig, formater=None, sz=None ):
+    def __init__(self, eig, formater=None, eig_digits=None, sigma_digits=None, vec_digits=None, sz=None ):
         '''
         eig:  dictionary with entries
               'lambda'        :    distinct eigenvalues
@@ -1172,6 +1172,8 @@ class EigenProblemTable:
         self.color = "blue"
 
         self.eig   = eig
+        self._round( eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits )
+
         if formater is not None:
            f_eig = {}
            f_eig['lambda'] = list( map( formater, eig['lambda']) )
@@ -1192,6 +1194,23 @@ class EigenProblemTable:
 
         self.tbl_fmt   = self._mk_table_format()
         self.rule_fmt  = self._mk_rule_format()
+
+    def _round( self, eig_digits=None, sigma_digits=None, vec_digits=None ):
+        if eig_digits is not None and 'lambda' in self.eig.keys():
+            f = lambda x: round(x) if eig_digits==0 else round(x,eig_digits)
+            self.eig['lambda'] = list( map( f, self.eig['lambda'] ))
+        if sigma_digits is not None and 'sigma' in self.eig.keys():
+            f = lambda x: round(x) if sigma_digits==0 else round(x,sigma_digits)
+            self.eig['sigma'] = list( map( lambda x: round(x,sigma_digits), self.eig['sigma'] ))
+        if vec_digits is not None:
+            f = lambda x: round(x) if vec_digits==0 else round(x,vec_digits)
+            if 'evecs' in self.eig.keys():
+                self.eig['evecs'] = self._mk_vectors('evecs', f)
+            if 'qvecs' in self.eig.keys():
+                self.eig['qvecs'] = self._mk_vectors('qvecs', f)
+            if 'uvecs' in self.eig.keys():
+                self.eig['uvecs'] = self._mk_vectors('uvecs', f)
+
 
     def _mk_table_format( self ):
         fmt = '{@{}l' + self.ncols*'c' + '@{}}'
@@ -1393,7 +1412,7 @@ class EigenProblemTable:
                    evecs_matrix             = evecs_matrix
                )
 # --------------------------------------------------------------------------------------------------
-def eig_tbl(A):
+def eig_tbl(A, eig_digits=None,vec_digits=None):
     A = sym.Matrix(A)
     eig = {
         'lambda': [],
@@ -1406,14 +1425,14 @@ def eig_tbl(A):
         eig['lambda'].insert(0,e)
         eig['ma'].insert(0,m)
         eig['evecs'].insert(0,vecs)
-    return EigenProblemTable( eig )
+    return EigenProblemTable( eig,eig_digits=eig_digits, vec_digits=vec_digits )
 
-def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
-    E = eig_tbl(A)
+def show_eig_tbl(A, Ascale=None, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+    E = eig_tbl(A, eig_digits=eig_digits,vec_digits=vec_digits)
     if Ascale is not None:
         E.eig[ 'lambda' ] = [ e/Ascale for e in E.eig[ 'lambda' ]]
 
-    svd_code = E.nm_latex_doc( formater=sym.latex, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
+    svd_code = E.nm_latex_doc( formater=formater, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
@@ -1421,7 +1440,7 @@ def show_eig_tbl(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue'
             nexec=1, keep_file=keep_file )
     return h
 # --------------------------------------------------------------------------------------------------
-def svd_tbl(A, Ascale=None):
+def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None):
     A   = sym.Matrix(A)
     eig = {
         'sigma':  [],
@@ -1466,11 +1485,12 @@ def svd_tbl(A, Ascale=None):
             eig['uvecs'].append( ns_on_basis )
 
     mySVD(A)
-    return EigenProblemTable( eig, sz=A.shape )
+    return EigenProblemTable( eig, sz=A.shape, eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits )
 
-def show_svd_table(A, Ascale=None, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
-    E = svd_tbl(A, Ascale=Ascale)
-    svd_code = E.nm_latex_doc( formater=sym.latex, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
+def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None,
+                   formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+    E = svd_tbl(A, Ascale=Ascale, eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits)
+    svd_code = E.nm_latex_doc( formater=formater, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
