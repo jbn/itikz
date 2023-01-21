@@ -1201,7 +1201,7 @@ class EigenProblemTable:
             self.eig['lambda'] = list( map( f, self.eig['lambda'] ))
         if sigma_digits is not None and 'sigma' in self.eig.keys():
             f = lambda x: round(x) if sigma_digits==0 else round(x,sigma_digits)
-            self.eig['sigma'] = list( map( lambda x: round(x,sigma_digits), self.eig['sigma'] ))
+            self.eig['sigma'] = list( map( f, self.eig['sigma'] ))
         if vec_digits is not None:
             f = lambda x: round(x) if vec_digits==0 else round(x,vec_digits)
             if 'evecs' in self.eig.keys():
