@@ -1440,7 +1440,7 @@ def eig_tbl(A, normal=False, eig_digits=None,vec_digits=None):
 
     return EigenProblemTable( eig,eig_digits=eig_digits, vec_digits=vec_digits )
 
-def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None, tmp_dir="tmp" ):
     E = eig_tbl(A, normal=normal, eig_digits=eig_digits,vec_digits=vec_digits)
     if Ascale is not None:
         E.eig[ 'lambda' ] = [ e/Ascale for e in E.eig[ 'lambda' ]]
@@ -1450,7 +1450,7 @@ def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None,
     svd_code = E.nm_latex_doc( formater=formater, case=c, mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
-            svd_code, prefix='svd_', working_dir="tmp", debug=False,
+            svd_code, prefix='svd_', working_dir=tmp_dir, debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
@@ -1495,12 +1495,12 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
     return EigenProblemTable( eig, sz=A.shape, eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits )
 
 def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None,
-                   formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+                   formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None, tmp_dir="tmp" ):
     E = svd_tbl(A, Ascale=Ascale, eig_digits=eig_digits, sigma_digits=sigma_digits, vec_digits=vec_digits)
     svd_code = E.nm_latex_doc( formater=formater, case='SVD', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
-            svd_code, prefix='svd_', working_dir="tmp", debug=False,
+            svd_code, prefix='svd_', working_dir=tmp_dir, debug=False,
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
