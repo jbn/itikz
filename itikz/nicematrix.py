@@ -841,6 +841,15 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, re
     return None, m
 
 # ================================================================================================================================
+def _q_gram_schmidt( v_list ):
+    w = []
+    for j in range( len( v_list )):
+        w_j = v_list[j]
+        for k in range( j-1 ):
+            w_j = w_j - w[k].dot( v_list[j]) * w[k]
+        w.append(1/w_j.norm() * w_j)
+    return w
+
 def compute_qr_matrices( A, W ):
     ''' given the matrix A and the corresponding matrix W with orthogonal columns,
     compute the list of list of sympy matrices in a QR layout
@@ -922,7 +931,7 @@ def qr(matrices, formater=str, array_names=True, fig_scale=None, tmp_dir="tmp", 
 
     return None, m
 
-def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None ):
+def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None, tmp_dir="tmp" ):
     A = sym.Matrix( A_ )
     W = sym.Matrix( W_ )
 
@@ -938,7 +947,7 @@ def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None ):
     matrices =  [ [ None,  None,   A,    W ],
                   [ None,   W.T, WtA,  WtW ],
                   [ S,       Qt,   R, None ] ]
-    h,m = qr( matrices, formater=formater, array_names=True, fig_scale=fig_scale, tmp_dir="tmp" )
+    h,m = qr( matrices, formater=formater, array_names=True, fig_scale=fig_scale, tmp_dir=tmp_dir )
     return h,m
 
 # ==================================================================================================
@@ -1410,27 +1419,35 @@ class EigenProblemTable:
                    evecs_matrix             = evecs_matrix
                )
 # --------------------------------------------------------------------------------------------------
-def eig_tbl(A, eig_digits=None,vec_digits=None):
+def eig_tbl(A, normal=False, eig_digits=None,vec_digits=None):
     A = sym.Matrix(A)
     eig = {
         'lambda': [],
         'ma':     [],
         'evecs':  [],
     }
+    if normal:
+        eig['qvecs'] = []
 
     res = A.eigenvects()
     for e,m,vecs in res:
         eig['lambda'].insert(0,e)
         eig['ma'].insert(0,m)
         eig['evecs'].insert(0,vecs)
+        if normal:
+            vvecs = _q_gram_schmidt( vecs )
+            eig['qvecs'].insert(0, vvecs )
+
     return EigenProblemTable( eig,eig_digits=eig_digits, vec_digits=vec_digits )
 
-def show_eig_tbl(A, Ascale=None, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
-    E = eig_tbl(A, eig_digits=eig_digits,vec_digits=vec_digits)
+def show_eig_tbl(A, Ascale=None, normal=False, eig_digits=None, vec_digits=None, formater=sym.latex, mmS=10, mmLambda=8, fig_scale=1.0, color='blue', keep_file=None ):
+    E = eig_tbl(A, normal=normal, eig_digits=eig_digits,vec_digits=vec_digits)
     if Ascale is not None:
         E.eig[ 'lambda' ] = [ e/Ascale for e in E.eig[ 'lambda' ]]
 
-    svd_code = E.nm_latex_doc( formater=formater, case='S', mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
+    c = 'Q' if normal else 'S'
+
+    svd_code = E.nm_latex_doc( formater=formater, case=c, mmS=mmS, mmLambda=mmLambda, fig_scale=fig_scale, color=color)
 
     h = itikz.fetch_or_compile_svg(
             svd_code, prefix='svd_', working_dir="tmp", debug=False,
@@ -1450,14 +1467,6 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
     }
     def mySVD(A):
         A = sym.Matrix(A)
-        def q_gram_schmidt( v_list ):
-            W = []
-            for j in range( len( v_list )):
-                w_j = v_list[j]
-                for k in range( j-1 ):
-                    w_j = w_j - W[k].dot( v_list[j]) * W[k]
-                W.append(1/w_j.norm() * w_j)
-            return W
 
         def sort_eig_vec(sym_eig_vec):
             sort_eig_vecs = sorted(sym_eig_vec, key=lambda x: x[0], reverse=True)
@@ -1470,7 +1479,7 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
                 eig['lambda'].append( e )
                 eig['ma'].append( i[1] )
                 eig['evecs'].append( i[2] )
-                vvecs = q_gram_schmidt( i[2] )
+                vvecs = _q_gram_schmidt( i[2] )
                 eig['qvecs'].append( vvecs )
 
                 if not sigma.is_zero:
@@ -1479,7 +1488,7 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
         sort_eig_vec((A.transpose() * A).eigenvects())
         ns = A.transpose().nullspace()
         if len(ns) > 0:
-            ns_on_basis = q_gram_schmidt( ns )
+            ns_on_basis = _q_gram_schmidt( ns )
             eig['uvecs'].append( ns_on_basis )
 
     mySVD(A)
