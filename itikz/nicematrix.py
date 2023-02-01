@@ -269,6 +269,7 @@ class MatrixGridLayout:
         else:
             self.m_Row_0 = [s[1] for s in self.array_shape[0,1:]]
 
+    @staticmethod
     def _set_extra( extra, n ):
         if isinstance(extra, int):
             extra = np.hstack([ np.repeat( 0, n), [extra] ])
@@ -360,11 +361,11 @@ class MatrixGridLayout:
                         self.a_tex[tl[0]+i, tl[1]+j] = decorate(self.a_tex[tl[0]+i, tl[1]+j])
             else:
                 for (i,j) in entries:
-                    s =  decorate(self.a_tex[tl[0]+i, tl[1]+j])
-                    self.a_tex[tl[0]+i, tl[1]+j] = s
+                    self.a_tex[tl[0]+i, tl[1]+j]     = decorate(self.a_tex[tl[0]+i, tl[1]+j])
         except:
             pass
 
+    @staticmethod
     def matrix_array_format( N, p_str='I', vpartitions=None):
         '''format string for a matrix with N columns'''
         if vpartitions is None:
@@ -726,14 +727,17 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
+def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+         variable_colors=['red','blue'], pivot_text_color='red',
+         ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+         start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color] 
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -760,7 +764,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
 
     if pivot_list is not None:
-        red_box = make_decorator( text_color='red', boxed=True, bf=True )
+        red_box = make_decorator( text_color=pivot_text_color, boxed=True, bf=True )
         for spec in pivot_list:
             m.decorate_tex_entries( *spec[0], red_box, entries=spec[1] )
 
@@ -771,8 +775,8 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         m.nm_text( comment_list )
 
     if variable_summary is not None:
-        blue    = make_decorator(text_color='blue', bf=True)
-        red     = make_decorator(text_color='red',  bf=True)
+        blue    = make_decorator(text_color=variable_colors[1], bf=True)
+        red     = make_decorator(text_color=variable_colors[0], bf=True)
         typ     = []
         var     = []
         for (i,basic) in enumerate(variable_summary):
@@ -814,7 +818,9 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
 
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
-def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+        variable_colors=['red','blue'], pivot_text_color='red',
+        ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
@@ -822,6 +828,7 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, re
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color] 
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -830,8 +837,13 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, re
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
 
-    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, bg_for_entries=bg_for_entries, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
-        start_index=start_index, func=func, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater,
+                                 pivot_list=pivot_list, bg_for_entries=bg_for_entries,
+                                 variable_colors=variable_colors,pivot_text_color=pivot_text_color,
+                                 ref_path_list=ref_path_list, comment_list=comment_list,
+                                 variable_summary=variable_summary, array_names=array_names,
+                                 start_index=start_index, func=func, fig_scale=fig_scale,
+                                 tmp_dir=tmp_dir, keep_file=keep_file)
 
     with open(svg_file, "r") as fp:
         svg = fp.read()
@@ -976,7 +988,7 @@ class BacksubstitutionCascade:
 
     def ref_Ab( self, Ab ):
         Ab = sym.Matrix( Ab )
-        self.ref_syseq( ref_Ab[:,0:-1], ref_Ab[:,-1] )
+        self.ref_syseq( Ab[:,0:-1], Ab[:,-1] )
 
     @staticmethod
     def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
@@ -1145,11 +1157,11 @@ class BacksubstitutionCascade:
                  fig_scale      = fig_scale
                )
 
-    def show(self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None, keep_file=None ):
+    def show(self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None, keep_file=None, tmp_dir="tmp" ):
         code = self.nm_latex_doc( A=A, b=b, show_system=show_system, show_cascade=show_cascade, show_solution=show_solution, fig_scale=fig_scale)
 
         h = itikz.fetch_or_compile_svg(
-                code, prefix='backsubst_', working_dir="tmp", debug=False,
+                code, prefix='backsubst_', working_dir=tmp_dir, debug=False,
                 **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
                 nexec=1, keep_file=keep_file )
         return h
@@ -1504,74 +1516,3 @@ def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digit
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
-# --------------------------------------------------------------------------------------------------
-# E = EigenProblemTable(  # requires a dictionary
-#        {
-#            'lambda': [3,           2, 1],
-#            'ma':     [2,           1, 1],
-#            'sigma':  [sym.sqrt(3), sym.sqrt(2), 1],
-#            'evecs':  [[sym.Matrix([1, 2, 1,0]), sym.Matrix([3, -1, 1,0])],   # list of lists of vectors, one for each eigenvalue
-#                       [sym.Matrix([2, 1, 2,1])],
-#                       [sym.Matrix([1, 1, 0,0])]],
-#            'qvecs':  [[sym.Matrix([1, 2, 1,0])/sym.sqrt(6), sym.Matrix([3, -1, 1,0])/sym.sqrt(11)],
-#                       [sym.Matrix([2, 1, 2,1])/sym.sqrt(10)],
-#                       [sym.Matrix([1, 1, 0,0])/sym.sqrt(2)]]
-#        }
-#
-#  )
-
-# ==================================================================================================
-# New Examples
-# ==================================================================================================
-#    k  = sym.Symbol('k'); h = sym.Symbol('h')
-#    Ab = sym.Matrix([[1,2,4,1],[2,k,8,h],[3,7,3,1]]); matrices = [[None, Ab]]; pivots = []; txt=[]
-#    # we could use row ops, but we want a computational layout (and hence the E matrices!):
-#    #    A=A.elementary_row_op('n->n+km', k=-3, row1=2,row2=0 );A
-#    #    A=A.elementary_row_op('n<->m',row1=1,row2=2);A
-#
-#    E1=sym.eye(3);E1[1:,0]=[-2,-3]; A1=E1*Ab;                               matrices.append([E1,A1]); pivots.append((1,1));txt.append('Pivot at (1,1)')
-#    E2=sym.eye(3);E2=E2.elementary_row_op('n<->m',row1=1,row2=2); A2=E2*A1; matrices.append([E2,A2]); pivots.append(None); txt.append('Rows 2 <-> 3')
-#    E3=sym.eye(3);E3[2,1]=4-k; A3=E3*A2;                                    matrices.append([E3,A3]); pivots.append((2,2));txt.append('Pivot at (2,2)')
-#    pivots.append((3,3)); txt.append('In Row Echelon Form')
-#
-# m3 = nM.MatrixGridLayout(matrices, extra_cols=1)
-# m3.array_format_string_list( partitions={ 1:[3]} )
-# m3.array_of_tex_entries()
-# red_box = nM.make_decorator( text_color='red', boxed=True, bf=True )
-# m3.decorate_tex_entries( 0,1, red_box, entries=[(0,0)] )
-# m3.decorate_tex_entries( 1,1, red_box, entries=[(0,0),(1,1)] )
-# m3.decorate_tex_entries( 2,1, red_box, entries=[(0,0),(1,1)] )
-# m3.decorate_tex_entries( 3,1, red_box, entries=[(0,0),(1,1),(2,2)] )
-#
-# m3.nm_text(txt)
-#
-# m3.nm_submatrix_locs()
-# m3.tex_repr( blockseps = r'\noalign{\vskip2mm}')
-#
-# m3_code = m3.nm_latexdoc(template = nM.GE_TEMPLATE )
-#
-# if True:
-#     h = itikz.fetch_or_compile_svg(
-#         m3_code, prefix='tst_', working_dir='/tmp/itikz', debug=False,
-#         **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
-#         nexec=4, keep_file="/tmp/itikz/m3" )
-# h
-# ==================================================================================================
-# OLD EXAMPLES
-# ==================================================================================================
-#loc_format( (1,2), parens=('{','}') )
-#pivot_locations([(1,3),(2,4)], n_layers=4, M=4, row_offset=10, col_offset=0)
-#
-#old_submatrix_locations( 2, (3,5), row_offset=1, col_offset=1+3, start_at_layer=0)
-#submatrix_locations( layers, row_offset=1, col_offset=1+3, start_at_layer=0)
-###########################################################
-#pivots =[]; n_layers=0
-#A  = np.array([[1.,2,1,  9,9],[3,4,5, 9,9], [5,6,1, 9,9]]); pivots.append((1,1)); n_layers=1
-#E1 = np.array([[1,0,0],[-3,1,0],[-5, 0,1]]); A1 = E1 @ A;   pivots.append((2,2)); n_layers=2
-#E2 = np.array([[1,0,0],[ 0,1,0],[ 0,-2,1]]); A2 = E2 @ A1;  pivots.append((3,3)); n_layers=3
-#
-#mat_rep, submatrix_locs, pivot_locs, path_corners,txt_with_locs,mat_format = nM.ge_int_layout( [[None, A], [E1, A1], [E2,A2]], pivots)
-#
-#print("mat_rep ="); print(mat_rep)
-#print("pivot_locs =");pivot_locs
-#print("submatrix_locs =");submatrix_locs
