@@ -384,7 +384,8 @@ class MatrixGridLayout:
         return s
 
     #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}',
+                                  p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
@@ -727,14 +728,17 @@ def mk_ge_names(n, lhs='E', rhs=['A','b'], start_index=1 ):
         terms.append( [(i,1), 'ar', '$' + names[i,1] + '$'])
     return terms
 # --------------------------------------------------------------------------------------------------------------------------------
-def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
-        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
+def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+         variable_colors=['red','blue'], pivot_text_color='red',
+         ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+         start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
     matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color] 
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -761,7 +765,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
 
     if pivot_list is not None:
-        red_box = make_decorator( text_color='red', boxed=True, bf=True )
+        red_box = make_decorator( text_color=pivot_text_color, boxed=True, bf=True )
         for spec in pivot_list:
             m.decorate_tex_entries( *spec[0], red_box, entries=spec[1] )
 
@@ -772,8 +776,8 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
         m.nm_text( comment_list )
 
     if variable_summary is not None:
-        blue    = make_decorator(text_color='blue', bf=True)
-        red     = make_decorator(text_color='red',  bf=True)
+        blue    = make_decorator(text_color=variable_colors[1], bf=True)
+        red     = make_decorator(text_color=variable_colors[0], bf=True)
         typ     = []
         var     = []
         for (i,basic) in enumerate(variable_summary):
@@ -816,6 +820,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None, r
     return m,tex_file,svg_file
 # -----------------------------------------------------------------------------------------------
 def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+        variable_colors=['red','blue'], pivot_text_color='red',
         ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
@@ -824,6 +829,7 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color] 
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -832,8 +838,13 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
 
-    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater, pivot_list=pivot_list, bg_for_entries=bg_for_entries, ref_path_list=ref_path_list, comment_list=comment_list, variable_summary=variable_summary, array_names=array_names,
-        start_index=start_index, func=func, fig_scale=fig_scale, tmp_dir=tmp_dir, keep_file=keep_file)
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater,
+                                 pivot_list=pivot_list, bg_for_entries=bg_for_entries,
+                                 variable_colors=variable_colors,pivot_text_color=pivot_text_color,
+                                 ref_path_list=ref_path_list, comment_list=comment_list,
+                                 variable_summary=variable_summary, array_names=array_names,
+                                 start_index=start_index, func=func, fig_scale=fig_scale,
+                                 tmp_dir=tmp_dir, keep_file=keep_file)
 
     with open(svg_file, "r") as fp:
         svg = fp.read()
@@ -1506,3 +1517,10 @@ def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digit
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
+
+def foo(x):
+    print( "foo input: ", x)
+    if x is None:
+        print( "None == ", None)
+    if x is not None:
+        print( "not None != ", None)

@@ -384,7 +384,8 @@ class MatrixGridLayout:
         return s
 
     #def array_format_string_list( self, partitions={}, spacer_string=r'@{\qquad\ }', p_str='I', last_col_format = "l@{\qquad\;\;}") :
-    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}', p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
+    def array_format_string_list( self, partitions={}, spacer_string=r'@{\hspace{9mm}}',
+                                  p_str='I', last_col_format=r'l@{\hspace{2cm}}' ):
         '''Construct the format string. Partitions is a dict { gridcolumn: list of partitions}'''
 
         for i in range(self.nGridCols):   # make sure we have a partion entry for each column of matrices
@@ -1516,3 +1517,10 @@ def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digit
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
+
+def foo(x):
+    print( "foo input: ", x)
+    if x is None:
+        print( "None == ", None)
+    if x is not None:
+        print( "not None != ", None)
