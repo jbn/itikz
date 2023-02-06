@@ -550,7 +550,11 @@ class MatrixGridLayout:
 
         def coords(i,j):
             if i >= shape[0]:
-                x = r'\x2' if j >= shape[1] else r'\x4'
+                if gN == 0 and j == 0:                           # HACK alert: first col in leftmost matrix!
+                    x = r'\x1'
+                else:
+                    x = r'\x2' if j >= shape[1] else r'\x4'
+                #x = r'\x2' if j >= shape[1] else r'\x1'
                 y = r'\y2'
                 p = f'({x},{y})'
             elif j >= shape[1]:
@@ -568,6 +572,7 @@ class MatrixGridLayout:
 
             if j != 0 and j < shape[1] and adj != 0:
                 p = f'($ {p} + ({adj:2},0) $)'
+
             return p
 
         cur = pivots[0]
@@ -606,6 +611,10 @@ class MatrixGridLayout:
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
         else:                                           #   last dir: |
             i,j = ll[-1]
+            #if len(pivots) == 1 and cur[0] == 0 and gN == 0:    # was this my previous "FIX"???
+            #    p4 = f'\\p4 = ({self.submatrix_name}{gM}x{gN}.south west) in '
+            #else:
+            #    p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
             p4 = f'\\p4 = ({i+tl[0]+1}-|{j+tl[1]+1}) in '
 
         cmd = '\\tikz \\draw['+color+'] ' + corners + p3 + p4  + ' -- '.join( [coords(*p) for p in ll] ) + ';'
@@ -803,7 +812,11 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
 
     if bg_for_entries is not None:
         for spec in bg_for_entries:
-            m.nm_background( *spec )
+            if all(isinstance(elem, list) for elem in spec):
+                for s in spec:
+                    m.nm_background( *s )
+            else:
+                m.nm_background( *spec )
 
     if ref_path_list is not None:
         for spec in ref_path_list:
