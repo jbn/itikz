@@ -990,15 +990,29 @@ class BacksubstitutionCascade:
         return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
 
     def ref_syseq(self, ref_A, ref_rhs = None ):
-        self.A   = sym.Matrix(ref_A)
-        self.rhs = None if ref_rhs is None else sym.Matrix( ref_rhs ).reshape( self.A.shape[0], 1 )
+        self.ref_A   = sym.Matrix(ref_A)
+        self.ref_rhs = None if ref_rhs is None else sym.Matrix( ref_rhs ).reshape( self.ref_A.shape[0], 1 )
 
-        self.rref_A, self.pivot_cols = self.A.rref()
+        if ref_rhs is None:
+            self.rref_A, self.pivot_cols = self.ref_A.rref()
+            self.rref_rhs = None
+        else:
+            Ab = self.ref_A.row_join( self.ref_rhs )
+            rref_Ab, pivot_cols_Ab = Ab.rref()
+            self.rref_A   = rref_Ab[:,0:-1]
+            self.rref_rhs = rref_Ab[:,-1]
+            if pivot_cols_Ab[-1] == self.rref_A.shape[1]:
+                self.pivot_cols = pivot_cols_Ab[:-1]
+            else:
+                self.pivot_cols = pivot_cols_Ab
+
+        #return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
+
         self.free_cols = [ i for i in range(ref_A.shape[1]) if i not in self.pivot_cols]
         self.rank      = len(    self.pivot_cols)
 
     def ref_rhs( self, rhs ):
-        self.rhs = None if rhs is None else sym.Matrix( rhs )
+        self.ref_rhs = None if rhs is None else sym.Matrix( rhs )
 
     def ref_Ab( self, Ab ):
         Ab = sym.Matrix( Ab )
@@ -1006,7 +1020,7 @@ class BacksubstitutionCascade:
 
     @staticmethod
     def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
-        """givem a row, generate the right hand terms from A_ref for the back substitution algorithm"""
+        """given a row, generate the right hand terms from A_ref for the back substitution algorithm"""
         t = sym.Integer(0) if rhs is None else rhs[pivot_row] 
         for j in range(pivot_col+1, ref_A.shape[1]):
             t = t - ref_A[pivot_row,j]*sym.Symbol(f"{name}_{j+1}")
@@ -1029,19 +1043,19 @@ class BacksubstitutionCascade:
             bs.append( ',\\;'.join([f"x_{i+1} = {alpha}_{i+1}" for i in self.free_cols] ))
             start = self.rank-1
         else:
-            bs.append( f"x_{self.rank} = {BacksubstitutionCascade._bs_equation(self.A,self.rank-1,self.pivot_cols[-1], self.rhs, name=alpha )}")
+            bs.append( f"x_{self.rank} = {BacksubstitutionCascade._bs_equation(self.ref_A,self.rank-1,self.pivot_cols[-1], self.ref_rhs, name=alpha )}")
             start = self.rank-2
 
         for i in range(start,-1, -1):
             bs.append( [
-                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(     self.A,i,self.pivot_cols[i], self.rhs, name=x )}",
-                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rhs, name=alpha )}"
+                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(     self.ref_A,i,self.pivot_cols[i], self.ref_rhs, name=x )}",
+                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rref_rhs, name=alpha )}"
             ])
         return bs
 
     def particular_solution(self):
         p = sym.Matrix.zeros( self.rref_A.shape[1], 1)
-        ps = self.A[0:self.rank,self.pivot_cols]**-1 * self.rhs[0:self.rank,0]
+        ps = self.ref_A[0:self.rank,self.pivot_cols]**-1 * self.ref_rhs[0:self.rank,0]
         for i,c in enumerate(self.pivot_cols):
             p[c,0] = ps[i,0]
         return p
@@ -1062,21 +1076,21 @@ class BacksubstitutionCascade:
         lft = r'\begin{pNiceArray}{r}'
         rgt = r'\end{pNiceArray}'
 
-        x = lft + r" \\ ".join( [f" x_{i+1}" for i in range(self.A.shape[1]) ] ) + rgt
+        x = lft + r" \\ ".join( [f" x_{i+1}" for i in range(self.ref_A.shape[1]) ] ) + rgt
  
-        if self.rhs is None:
+        if self.ref_rhs is None:
             p    = ""
             plus = ""
         else:
             ps   = self.particular_solution()
-            p    = lft + r" \\ ".join( [ sym.latex(ps[i,0])  for i in range(self.A.shape[1]) ] ) + rgt
+            p    = lft + r" \\ ".join( [ sym.latex(ps[i,0])  for i in range(self.ref_A.shape[1]) ] ) + rgt
             plus = " + " if len(self.free_cols) > 0 else ""
 
         if len(self.free_cols) > 0:
             hs = self.homogeneous_solution()
             h_txt = []
             for j,jv in enumerate( self.free_cols ):
-                h = f"\\alpha_{jv+1} "  + lft +  r" \\ ".join( [ sym.latex(hs[i,j])  for i in range(self.A.shape[1]) ] ) + rgt
+                h = f"\\alpha_{jv+1} "  + lft +  r" \\ ".join( [ sym.latex(hs[i,j])  for i in range(self.ref_A.shape[1]) ] ) + rgt
                 h_txt.append( h )
 
             h_txt = " + ".join(h_txt)
@@ -1145,7 +1159,7 @@ class BacksubstitutionCascade:
     def nm_latex_doc( self, A=None, b=None, show_system=False, show_cascade=True, show_solution=False, fig_scale=None ):
         if show_system:
            if A is None or b is None:
-               system_txt = BacksubstitutionCascade.gen_system_eqs( self.A, self.rhs )
+               system_txt = BacksubstitutionCascade.gen_system_eqs( self.ref_A, self.ref_rhs )
            else:
                system_txt = BacksubstitutionCascade.gen_system_eqs( A, b )
         else:
