@@ -2,7 +2,7 @@ import numpy as np
 import sympy as sym
 import jinja2
 import itikz
-from IPython.display import SVG
+from IPython.core.display import SVG
 
 # ================================================================================================================================
 extension = r''' '''
@@ -11,7 +11,7 @@ preamble = r''' '''
 # =================================================================
 BACKSUBST_TEMPLATE = r'''\documentclass[notitlepage,table,svgnames]{article}
 \pagestyle{empty}
-\usepackage[margin=0cm]{geometry}
+\usepackage[margin=0cm,paperwidth=90in]{geometry}
 \usepackage{mathtools}
 \usepackage{amssymb}
 \usepackage{cascade}
@@ -101,7 +101,7 @@ $\color{{color}}{ {{matrix_names[2]}} = }$ & {{left_singular_matrix}} \\  \addli
 # =================================================================
 GE_TEMPLATE = r'''\documentclass[notitlepage]{article}
 \pagestyle{empty}
-%\usepackage[paperheight=9in,paperwidth=56in,top=1in,bottom=1in,right=1in,left=1in,heightrounded,showframe]{geometry}
+\usepackage[margin=0cm,paperwidth=90in]{geometry}
 
 \usepackage{mathtools}
 \usepackage{xltxtra}
