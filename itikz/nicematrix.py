@@ -3,6 +3,7 @@ import sympy as sym
 import jinja2
 import itikz
 from IPython.core.display import SVG
+from IPython.core.display import HTML
 
 # ================================================================================================================================
 extension = r''' '''
@@ -1523,7 +1524,8 @@ def svd_tbl(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digits=None)
                 eig['qvecs'].append( vvecs )
 
                 if not sigma.is_zero:
-                    eig['uvecs'].append( [ 1/sigma * A * v for v in vvecs] )
+                    s_inv = 1/sigma if Ascale is None else 1/(sigma*Ascale)
+                    eig['uvecs'].append( [ s_inv * A * v for v in vvecs] )
 
         sort_eig_vec((A.transpose() * A).eigenvects())
         ns = A.transpose().nullspace()
@@ -1544,10 +1546,23 @@ def show_svd_table(A, Ascale=None, eig_digits=None, sigma_digits=None, vec_digit
             **itikz.build_commands_dict(use_xetex=True,use_dvi=False,crop=True),
             nexec=1, keep_file=keep_file )
     return h
+# ==================================================================================================
+def html_string(txt,sz=20,color="darkred",justify="left",height="15"):
+    return HTML(f"""<div style=\"float:center;width:100%;text-align:${justify};\">
+               <strong style=\"height:${height}px;color:${color};font-size:${sz}pt;\">
+               ${txt}
+               </strong></div>""")
+# --------------------------------------------------------------------------------------------------
+def html_strings(txt1,txt2,sz1=20,sz2=20,color="darkred",justify="left",height="15"):
+    return HTML("""<div style=\"float:center;width:100%;text-align:${justify};\">
+<strong style=\"height:${height}px;color:${color};font-size:${sz1}pt;\">${txt1}</strong><br>
+<strong style=\"height:${height}px;color:${color};font-size:${sz2}pt;\">${txt2}</strong><br>
+</div>""")
 
-def foo(x):
-    print( "foo input: ", x)
-    if x is None:
-        print( "None == ", None)
-    if x is not None:
-        print( "not None != ", None)
+
+#def foo(x):
+#    print( "foo input: ", x)
+#    if x is None:
+#        print( "None == ", None)
+#    if x is not None:
+#        print( "not None != ", None)
