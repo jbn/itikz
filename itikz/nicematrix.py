@@ -748,7 +748,7 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
-    variable_colors:  [ basic_var_color, free_var_color] 
+    variable_colors:  [ basic_var_color, free_var_color]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -762,6 +762,9 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
     m = MatrixGridLayout(matrices, extra_rows=extra_rows, extra_cols = extra_cols )
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
+    if isinstance( Nrhs, np.ndarray ):  # julia passes arrays rather than lists   :-()
+        Nrhs = list(Nrhs.flatten())
+
     if not isinstance( Nrhs, list):
         partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
     else:
@@ -843,7 +846,7 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
-    variable_colors:  [ basic_var_color, free_var_color] 
+    variable_colors:  [ basic_var_color, free_var_color]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
@@ -1022,7 +1025,7 @@ class BacksubstitutionCascade:
     @staticmethod
     def _bs_equation( ref_A, pivot_row, pivot_col, rhs=None, name="x" ):
         """given a row, generate the right hand terms from A_ref for the back substitution algorithm"""
-        t = sym.Integer(0) if rhs is None else rhs[pivot_row] 
+        t = sym.Integer(0) if rhs is None else rhs[pivot_row]
         for j in range(pivot_col+1, ref_A.shape[1]):
             t = t - ref_A[pivot_row,j]*sym.Symbol(f"{name}_{j+1}")
 
@@ -1072,13 +1075,13 @@ class BacksubstitutionCascade:
 
     def _gen_solution_eqs( self ):
         """generate the solution equations"""
-        #lft = r" \left( \begin{array}{r} " 
+        #lft = r" \left( \begin{array}{r} "
         #rgt = r" \end{array} \right)"
         lft = r'\begin{pNiceArray}{r}'
         rgt = r'\end{pNiceArray}'
 
         x = lft + r" \\ ".join( [f" x_{i+1}" for i in range(self.ref_A.shape[1]) ] ) + rgt
- 
+
         if self.ref_rhs is None:
             p    = ""
             plus = ""
