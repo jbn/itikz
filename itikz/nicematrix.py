@@ -763,16 +763,21 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
 
     # compute the format spec for the arrays and set up the entries (defaults to a single partition line)
     if isinstance( Nrhs, np.ndarray ):  # julia passes arrays rather than lists   :-()
+        print("EGB original Nrhs", Nrhs)
         Nrhs = list(Nrhs.flatten())
+        print("flattened Nrhs", Nrhs)
 
     if not isinstance( Nrhs, list):
         partitions = {} if Nrhs == 0 else { 1: [m.mat_col_width[-1]-Nrhs]}
     else:
-        nrhs = Nrhs.copy(); nrhs.reverse()       # partitions just specifies each col
+        nrhs = Nrhs.copy(); #nrhs.reverse()       # partitions just specifies each col
         cuts = [m.mat_col_width[-1] - sum(nrhs)]
+        print("EGB cuts", cuts)
         for cut in nrhs[1:]:
             cuts.append( cuts[-1]+cut )
+            print(".  egb ", cuts)
         partitions = { 1: cuts}
+        print("EGB partitions", partitions)
 
     m.array_format_string_list( partitions=partitions )
     m.array_of_tex_entries(formater=formater)   # could overwride the entry to TeX string conversion here
