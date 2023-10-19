@@ -869,7 +869,38 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
         return SVG(svg), m
 
     return None, m
+# -----------------------------------------------------------------------------------------------
+def _to_svg_str( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+        variable_colors=['red','blue'], pivot_text_color='red',
+        ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
+    '''basic GE layout (development version):
+    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
+    pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color]
+    ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
+    comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']
+    start_index:      first subscript for the elementary operation matrices (can be None)
+    func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
+    '''
 
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater,
+                                 pivot_list=pivot_list, bg_for_entries=bg_for_entries,
+                                 variable_colors=variable_colors,pivot_text_color=pivot_text_color,
+                                 ref_path_list=ref_path_list, comment_list=comment_list,
+                                 variable_summary=variable_summary, array_names=array_names,
+                                 start_index=start_index, func=func, fig_scale=fig_scale,
+                                 tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+
+    return svg
 # ================================================================================================================================
 def _q_gram_schmidt( v_list ):
     w = []
