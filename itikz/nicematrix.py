@@ -1426,7 +1426,14 @@ class EigenProblemTable:
         tbl_fmt   = self._mk_table_format()
 
         # ------------------------------------------------------ values
-        sigmas  = self.mk_values('sigma',  formater=formater ) if case == 'SVD' else None
+        def no_zeros(x):
+            if type(x) is str:
+                return '' if x=='0' else formater(x)
+            try:
+                return '' if x.is_zero else formater(x)
+            except:
+                return formater(x)
+        sigmas  = self.mk_values('sigma',  formater=no_zeros ) if case == 'SVD' else None
         lambdas = self.mk_values('lambda', formater=formater)
         mas     = self.mk_values('ma',     formater=formater)
 
