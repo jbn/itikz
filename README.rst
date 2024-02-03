@@ -21,11 +21,11 @@ The installation information below will install the version provided by the orig
 To use the upgraded version here, download it, and copy the itikz subdirectory into
 a directory in your PYTHONPATH.
 
+Step by step instructions for Windows are shown in the InstallationInstructions.png file.
+
 Prerequisites:
 
 * a working TeX installation, e.g., https://tug.org/texlive/windows.html
-* a recent version of François Pantigny's nicematrix package https://ctan.org/pkg/nicematrix
-  (a current tex installation works)
 * inkscape   (ensure inkscape is on the path)
 * pdf2svg    (https://github.com/jalios/pdf2svg-windows  enure the selected directory is on the path)
 
