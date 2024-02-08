@@ -182,6 +182,41 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
 \end{minipage}\end{document}
 '''
 # ================================================================================================================================
+def convert_tuple_array_to_rationals(A):
+    '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
+    print("DBG convert_tuple_array_to_rationals", A)
+    return sym.Matrix( [[sym.Rational(num, denom) for num, denom in row] for row in A] )
+
+def convert_tuple_list_to_rationals(A):
+    print("DBG convert_tuple_list_to_rationals", A)
+    '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
+    return sym.Matrix( [sym.Rational(num, denom) for num, denom in A] )
+
+def convert_to_sympy_matrix(A):
+    if A is None: return None
+    print("DBG convert_to_sympy_matrix", A)
+    if isinstance( A, list):
+        if isinstance( A[0], list):
+            print(".  DBG 1")
+            if isinstance(A[0][0], tuple ):      # list of list of tuples
+                A = convert_tuple_array_to_rationals(A)
+                print(".  DBG 1a", A)
+            else:                                # list of list of values
+                A   = sym.Matrix(A)
+                print(".  DBG 1b", A)
+        else:                                    # just a list
+            print(".  DBG 2")
+            if isinstance(A[0], tuple ):         # list of tuples
+                A = convert_tuple_list_to_rationals(A)
+                print(".  DBG 2a", A)
+            else:
+                A = sym.Matrix(A)
+                print(".  DBG 2b", A)
+    else:                                         # not a list; should be matrix
+        A   = sym.Matrix(A)
+        print(".  DBG 3", A)
+    return A
+# ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
 # ================================================================================================================================
 class MatrixGridLayout:
@@ -747,12 +782,12 @@ def _ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
-    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ] where pt is the inner separation, e.g. 0
     variable_colors:  [ basic_var_color, free_var_color]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
     variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
-    array_names:      list of names for the two columns: [ 'E', ['A','b','I']
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']]
     start_index:      first subscript for the elementary operation matrices (can be None)
     func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
     '''
@@ -841,11 +876,45 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
         ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
         start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
     '''basic GE layout (development version):
-    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    matrices:         [ [None, A0, ... ], [E1, A1, ... ], [E2, A2, ... ], ... ]
     Nrhs:             number of right hand side columns determines the placement of a partition line, if any
                       can also be a list of widths to be partioned...
     pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
     bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ]
+    variable_colors:  [ basic_var_color, free_var_color]
+    ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
+    comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
+    variable_summary: [ basic, ... ]  a list of true/false values specifying whether a column has a pivot or not
+    array_names:      list of names for the two columns: [ 'E', ['A','b','I']]
+    start_index:      first subscript for the elementary operation matrices (can be None)
+    func:             a function to be applied to the MatrixGridLayout object prior to generating the latex document
+    '''
+
+    m, tex_file, svg_file = _ge( matrices, Nrhs=Nrhs, formater=formater,
+                                 pivot_list=pivot_list, bg_for_entries=bg_for_entries,
+                                 variable_colors=variable_colors,pivot_text_color=pivot_text_color,
+                                 ref_path_list=ref_path_list, comment_list=comment_list,
+                                 variable_summary=variable_summary, array_names=array_names,
+                                 start_index=start_index, func=func, fig_scale=fig_scale,
+                                 tmp_dir=tmp_dir, keep_file=keep_file)
+
+    with open(svg_file, "r") as fp:
+        svg = fp.read()
+    if svg is not None:
+        return SVG(svg), m
+
+    return None, m
+# -----------------------------------------------------------------------------------------------
+def _to_svg_str( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
+        variable_colors=['red','blue'], pivot_text_color='red',
+        ref_path_list=None, comment_list=None, variable_summary=None, array_names=None,
+        start_index=1, func=None, fig_scale=None, tmp_dir="tmp", keep_file=None ):
+    '''basic GE layout (development version):
+    matrices:         [ [None, A0], [E1, A1], [E2, A2], ... ]
+    Nrhs:             number of right hand side columns determines the placement of a partition line, if any
+                      can also be a list of widths to be partioned...
+    pivot_list:       [ pivot_spec, pivot_spec, ... ] where pivot_spec = [grid_pos, [pivot_pos, pivot_pos, ...]]
+    bg_for_entries:   [ bg_spec, ...] where bg_spec = [gM,gN, [ entries ], color, pt ] where pt is the inner separation, e.g. 0
     variable_colors:  [ basic_var_color, free_var_color]
     ref_path_list:    [ path_spec, path_spec, ... ] where path_spec = [grid_pos, [pivot_pos], directions ] where directions='vv','vh','hv' or 'hh'
     comment_list:     [ txt, txt, ... ] must have a txt entry for each layer. Multiline comments are separated by \\
@@ -865,11 +934,8 @@ def ge( matrices, Nrhs=0, formater=str, pivot_list=None, bg_for_entries=None,
 
     with open(svg_file, "r") as fp:
         svg = fp.read()
-    if svg is not None:
-        return SVG(svg), m
 
-    return None, m
-
+    return svg
 # ================================================================================================================================
 def _q_gram_schmidt( v_list ):
     w = []
@@ -985,17 +1051,34 @@ def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None, tmp_dir="tmp" )
 # ==================================================================================================
 class BacksubstitutionCascade:
     def __init__(self, ref_A, ref_rhs = None ):
+        print( "DBG: __init__ ", ref_A)
+        print( "DBG: __init__ ", ref_rhs)
         self.ref_syseq( ref_A, ref_rhs=ref_rhs)
 
     @classmethod
     def from_ref_Ab(cls, ref_Ab):
-        """create `cls` from augmented row echelon form matrix Ab"""
-        ref_Ab = sym.Matrix( ref_Ab )
-        return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
+        """create `cls` from augmented row echelon form matrix Ab (b is a column vector)"""
+        if isinstance( ref_Ab, list ):
+            ref_A   = [row[0:-1]  for row in ref_Ab]
+            ref_rhs = [row[-1]    for row in ref_Ab]
+        else:
+            print("DBG: ?????", type(ref_Ab))
+            ref_A   = ref_Ab[:,0:-1]
+            ref_rhs = ref_Ab[:,-1]
+        print( "DBG", ref_A)
+        print( "DBG", ref_rhs)
+        return cls( ref_A, ref_rhs )
 
     def ref_syseq(self, ref_A, ref_rhs = None ):
-        self.ref_A   = sym.Matrix(ref_A)
-        self.ref_rhs = None if ref_rhs is None else sym.Matrix( ref_rhs ).reshape( self.ref_A.shape[0], 1 )
+        print( "DBG: in ref_syseq")
+        print( ".  DBG  got ref_A", ref_A)
+        print( ".  DBG  got ref_rhs", ref_rhs)
+        self.ref_A   = convert_to_sympy_matrix( ref_A )
+        self.ref_rhs = convert_to_sympy_matrix( ref_rhs )
+
+        print( "DBG: in ref_syseq after convert")
+        print( ".  DBG: ref_A   =", self.ref_A)
+        print( ".  DBG: ref_rhs =", self.ref_rhs)
 
         if ref_rhs is None:
             self.rref_A, self.pivot_cols = self.ref_A.rref()
@@ -1003,6 +1086,7 @@ class BacksubstitutionCascade:
         else:
             Ab = self.ref_A.row_join( self.ref_rhs )
             rref_Ab, pivot_cols_Ab = Ab.rref()
+            print( ".  DBG rref = ")
             self.rref_A   = rref_Ab[:,0:-1]
             self.rref_rhs = rref_Ab[:,-1]
             if pivot_cols_Ab[-1] == self.rref_A.shape[1]:
@@ -1012,7 +1096,8 @@ class BacksubstitutionCascade:
 
         #return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
 
-        self.free_cols = [ i for i in range(ref_A.shape[1]) if i not in self.pivot_cols]
+        print( "DBG: pivots", self.pivot_cols)
+        self.free_cols = [ i for i in range(self.ref_A.shape[1]) if i not in self.pivot_cols]
         self.rank      = len(    self.pivot_cols)
 
     def ref_rhs( self, rhs ):
@@ -1031,7 +1116,7 @@ class BacksubstitutionCascade:
 
         if t.is_zero: return f" 0 "
 
-        factor = 1/ref_A[pivot_row,pivot_col]
+        factor = sym.Integer(1)/ref_A[pivot_row,pivot_col]
 
         if   factor ==  1: return(sym.latex(t))
         elif factor == -1: return f"- \\left( {sym.latex(t)} \\right)"
@@ -1052,7 +1137,7 @@ class BacksubstitutionCascade:
 
         for i in range(start,-1, -1):
             bs.append( [
-                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(     self.ref_A,i,self.pivot_cols[i], self.ref_rhs, name=x )}",
+                f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.ref_A, i,self.pivot_cols[i], self.ref_rhs, name=x )}",
                 f"x_{self.pivot_cols[i]+1} = {BacksubstitutionCascade._bs_equation(self.rref_A,i,self.pivot_cols[i], self.rref_rhs, name=alpha )}"
             ])
         return bs
@@ -1127,8 +1212,12 @@ class BacksubstitutionCascade:
 
             return s
 
-        A   = sym.Matrix( A )
-        b   = sym.Matrix( b ).reshape( A.shape[0], 1 )
+        print( "gensystem equations ", A)
+        print( "gensystem equations ", b)
+        A   = convert_to_sympy_matrix( A )
+        b   = convert_to_sympy_matrix( b )
+        #A   = sym.Matrix( A )
+        #b   = sym.Matrix( b ).reshape( A.shape[0], 1 )
         eqs = []
         for i in range( A.shape[0] ):
             terms = []

@@ -271,7 +271,7 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
 
     if debug or not svg_file.exists():
         if debug:
-            print(">>>> tex file path: ", tex_file)
+            print(">>>> tex file: ", tex_file)
             print(">>>> tex code:\n", src)
         with open(tex_file, "w") as fp:
             #print( "EXA ***writing to ", tex_file, "\nsrc:   ", src)
@@ -281,7 +281,7 @@ svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False,
                 print("failed to write tex source", file=sys.stderr)
                 cleanup_artifacts(working_dir, src_hash)
                 return
-        #print("EXA file exists: ", tex_file.exists() )
+        #print("EXA file exists: ", tex_file.exists(), tex_file )
 
         try:
             tex_program.append( str(tex_file) )
