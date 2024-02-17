@@ -1,19 +1,28 @@
 import argparse
+import re
 import os
 import shlex
 import sys
 import tempfile
 from hashlib import md5
 from shutil import fnmatch
+from shutil import copy as shutil_copy
 from string import Template
 from subprocess import check_output, CalledProcessError
+from subprocess import run as run_subprocess
 from IPython.display import SVG, Image
 from IPython.core.magic import Magics, magics_class, line_cell_magic
 
+from pathlib import Path
+import tempfile
+
+import logging
+logger = logging.getLogger()
+logger.setLevel( logging.DEBUG )
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.5'
+__version__ = '0.1.6ea'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
@@ -26,6 +35,13 @@ $src
 
 
 IMPLICIT_STANDALONE = Template(r"""\documentclass{standalone}
+$extras
+\begin{document}
+$src
+\end{document}""")
+
+IMPLICIT_ARTICLE = Template(r"""\documentclass{article}
+\pagenumbering{gobble}
 $extras
 \begin{document}
 $src
@@ -54,6 +70,10 @@ def parse_args(line):
     parser.add_argument('k', type=str, nargs='?',
                         help='the variable in IPython with the string source')
 
+    parser.add_argument('--keep-file', dest='keep_file',
+                        default=None,
+                        help='directory to keep tex and svg file')
+
     parser.add_argument('--temp-dir', dest='temp_dir', action='store_true',
                         default=False,
                         help='emit artifacts to system temp dir')
@@ -61,17 +81,17 @@ def parse_args(line):
     parser.add_argument('--file-prefix', dest='file_prefix',
                         default='', help='emit artifacts with a path prefix')
 
-    parser.add_argument('--implicit-pic', dest='implicit_pic',
-                        action='store_true', default=False,
-                        help='wrap source in implicit tikzpicture document')
+    parser.add_argument('--template', dest='implicit_template',
+                        default=None,
+                        help='wrap source in implicit document: pic, standalone or article')
 
-    parser.add_argument('--implicit-standalone', dest='implicit_standalone',
-                        action='store_true', default=False,
-                        help='wrap source in implicit document')
+    parser.add_argument('--nexec', dest='nexec',
+                        default=1,
+                        help='set number of engine executions in --nexec')
 
     parser.add_argument('--scale', dest='scale',
                         default='1',
-                        help='Set tikzpicture scale in --implicit-pic tmpl')
+                        help='Set tikzpicture scale in --template pic')
 
     parser.add_argument('--tikz-libraries', dest='tikz_libraries',
                         default='',
@@ -85,6 +105,17 @@ def parse_args(line):
                         default='pdflatex',
                         help='Name of alternate LaTeX program (e.g., lualatex)')
 
+    parser.add_argument('--use-xetex', dest='use_xetex', action='store_true',
+                        default=False,
+                        help='use xetex rather than pdflatex')
+
+    parser.add_argument('--use-dvi', dest='use_dvi', action='store_true',
+                        default=False,
+                        help='use dvi or xdv for conversion to svg')
+    parser.add_argument('--crop', dest='crop', action='store_true',
+                        default=False,
+                        help='use inkscape to crop the svg')
+
     parser.add_argument('--as-jinja', dest='as_jinja',
                         action='store_true', default=False,
                         help="Interpret the source as a jinja2 template")
@@ -97,6 +128,9 @@ def parse_args(line):
                         action='store_true', default=False,
                         help="Rasterize the svg with cairosvg")
 
+    parser.add_argument('--debug', dest='debug',
+                        action='store_true', default=False,
+                        help="turn on debug mode")
     parser.add_argument('--full-error', dest='full_err',
                         action='store_true', default=False,
                         help="Emit the full error message")
@@ -108,35 +142,195 @@ def parse_args(line):
 
     return parser, parser.parse_args(shlex.split(line))
 
+# ==========================================================================
+def get_wd(s, root=None, add_itikz=True ):
+    '''build the working directory'''
+    if isinstance(root, bool):
+        root = None
+    if root is None:
+        tmp = os.environ.get( 'ITIKZ_TEMP_DIR' )
+        if not tmp:
+            import platform
+            root = Path("/tmp" if platform.system() == "Darwin" else tempfile.gettempdir())
+        else:
+            root = Path(tmp)
+    if isinstance(s, bool):
+        s = None
 
-def get_cwd(args):
-    if args.temp_dir or os.environ.get('ITIKZ_TEMP_DIR'):
-        cwd = os.path.join(tempfile.gettempdir(), 'itikz')
-        os.makedirs(cwd, exist_ok=True)
-        return cwd  # Override as cwd
+    if s is None:
+        if add_itikz:
+            root = root / 'itikz'
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    s      = Path(s)
+    l      = len( s.parts )
+    sa     = Path(s).absolute()
+
+    if sa.is_dir():
+        d = sa / 'itikz' if add_itikz else sa
+    elif l > 1 and s.parent.is_dir():
+        d = sa / 'itikz' if add_itikz else sa
     else:
-        return None  # No override.
+        d = root / s
+        d = d / 'itikz' if add_itikz else d
 
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
-def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_program='pdflatex'):
+def get_wf(s, root, sfx='.tex'):
+    '''construct the full path name of a file with suffix s'''
+    s = Path(s)
+    p = s.parts
+    if len(p) > 1:
+        r = get_wd(s.parent, root, add_itikz=False)
+        return r / (s.name + sfx )
+    if s.is_absolute():
+        return root / s.parent / (s.name + sfx)
+    return root / ( "/".join( s.parts ) + sfx )
+
+def build_commands_dict( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    tex_program,svg_converter,svg_crop = build_commands( tex_program, svg_converter, use_xetex, use_dvi, crop, nexec)
+    return  { "tex_program":tex_program,"svg_converter":svg_converter,"svg_crop":svg_crop  }
+
+def build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    '''
+build_commands( tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], use_xetex=False, use_dvi=False, crop=False, nexec=1):
+    '''
+    if isinstance( tex_program, (list,)) is False:
+        tex_program = [tex_program]
+
+    if tex_program[0]  == "pdflatex":
+        if use_xetex is True:
+            if use_dvi is True:
+                if nexec > 1:
+                    #print("EXA  case 1")
+                    ###_tex_program = ["xelatex", "--no-pdf", "--etex" ]
+                    _tex_program = ["xelatex", "--no-pdf" ]
+                    _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
+                else:
+                    #print("EXA  case 2")
+                    #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
+                    _tex_program = ["latexmk", "-quiet", "-silent", "-xelatex" ]
+                    _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".xdv"]
+            else:
+                if nexec > 1:
+                    #print("EXA  case 3")
+                    #_tex_program = ["xelatex", "--etex" ]
+                    _tex_program = ["xelatex" ]
+                    _svg_converter = [["pdf2svg"], ".pdf"]
+                else:
+                    #print("EXA  case 4")
+                    #_tex_program = ["latexmk", "--quiet", "--silent", "--xelatex", "--etex" ]
+                    _tex_program = ["latexmk", "-quiet", "-silent", "-xelatex" ]
+                    _svg_converter = [["pdf2svg"], ".pdf"]
+        else:
+            if use_dvi is True:
+                #print("EXA  case 5")
+                #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-dvi" ]
+                _tex_program = ["latexmk", "-quiet", "-silent", "-dvi" ]
+                _svg_converter = [["dvisvgm", "--font-format=woff2", "--exact"], ".dvi"]
+            else:
+                #print("EXA  case 6")
+                #_tex_program = ["latexmk", "--quiet", "--silent", "--etex", "-pdf" ]
+                _tex_program = ["latexmk", "-quiet", "-silent", "-pdf" ]
+                _svg_converter = [["pdf2svg"], ".pdf"]
+    else:
+       #print("EXA  case 7")
+       _tex_program = tex_program
+       _svg_converter = svg_converter
+    if crop:
+        _svg_crop = (["inkscape", "--batch-process", "--export-plain-svg", "-D", "--export-margin=1", "-o"])
+    else:
+        _svg_crop = None
+
+    return _tex_program, _svg_converter,_svg_crop
+
+def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+    svg = svg_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+    if svg is not None:
+        return SVG(svg)
+    return None
+
+def svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+svg_file_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+    ##EXA working_dir = get_working_dir(working_dir)
+    working_dir = get_wd(working_dir, root=None, add_itikz=working_dir is None)
+
     src_hash = md5(src.encode()).hexdigest()
-    output_path = prefix + src_hash
-    if working_dir is not None:
-        output_path = os.path.join(working_dir, output_path)
-    svg_path = output_path + ".svg"
+    output_prefix  =  prefix +src_hash
 
-    if not os.path.exists(svg_path):
-        tex_path = output_path + ".tex"
-        pdf_path = output_path + ".pdf"
-        tex_filename = os.path.basename(tex_path)
+    tex_file = working_dir / (output_prefix + '.tex')
+    pdf_file = working_dir / (output_prefix + '.pdf')
+    svg_file = working_dir / (output_prefix + '.svg')
 
-        with open(tex_path, "w") as fp:
-            fp.write(src)
+    if debug or not svg_file.exists():
+        if debug:
+            print(">>>> tex file: ", tex_file)
+            print(">>>> tex code:\n", src)
+        with open(tex_file, "w") as fp:
+            #print( "EXA ***writing to ", tex_file, "\nsrc:   ", src)
+            try:
+                fp.write(src)
+            except:
+                print("failed to write tex source", file=sys.stderr)
+                cleanup_artifacts(working_dir, src_hash)
+                return
+        #print("EXA file exists: ", tex_file.exists(), tex_file )
 
         try:
-            check_output([tex_program, tex_filename], cwd=working_dir)
-            check_output(["pdf2svg", pdf_path, svg_path], cwd=working_dir)
+            tex_program.append( str(tex_file) )
+            if debug:
+                print(">>>> tex_PROGRAM: ", ' '.join(tex_program), working_dir)
+            for _ in range(nexec-1):
+                run_subprocess(tex_program, cwd=working_dir)
+            check_output(tex_program, cwd=working_dir)
+
+            svg_program = svg_converter[0] + [str(pdf_file), str(svg_file)]
+            if debug:
+                print(">>>> svg_PROGRAM: ", ' '.join(svg_program))
+            check_output(svg_program, cwd=working_dir)
+
+            if svg_crop is not None:
+                crop_program = svg_crop + [str(svg_file), str(svg_file)]
+                if debug:
+                    print(">>>> svg_crop_PROGRAM: ", ' '.join(crop_program))
+                check_output( crop_program, cwd=working_dir)
+
+            # Could also convert SVG to PNG here
+            # inkscape -z -e test.png -w 1024 -h 1024 test.svg
+
+            if keep_file is not None:
+                tex_keep_file = get_wf(keep_file, Path.cwd(), sfx=".tex")
+                svg_keep_file = get_wf(keep_file, Path.cwd(), sfx=".svg")
+
+                try:
+                    if debug:
+                        print(">>>> Save Files: ", ' '.join(["cp", str(tex_file), str(tex_keep_file)]))
+                        print("                 ", ' '.join(["cp", str(svg_file), str(svg_keep_file)]))
+                    shutil_copy( tex_file, tex_keep_file )
+                    shutil_copy( svg_file, svg_keep_file )
+                except:
+                    print( "Could not copy files")
+
         except CalledProcessError as e:
+            if keep_file is not None:
+                tex_keep_file = get_wf(keep_file, Path.cwd(), sfx=".tex")
+                svg_keep_file = get_wf(keep_file, Path.cwd(), sfx=".svg")
+                try:
+                    if debug:
+                        print(">>>> Save Files: ", ' '.join(["cp", str(tex_file), str(tex_keep_file)]))
+                        print("                 ", ' '.join(["cp", str(svg_file), str(svg_keep_file)]))
+                    shutil_copy( tex_file, tex_keep_file )
+                    shutil_copy( svg_file, svg_keep_file )
+                except:
+                    print( "Could not copy files")
+
             cleanup_artifacts(working_dir, src_hash)
             err_msg = e.output.decode()
 
@@ -146,27 +340,37 @@ def fetch_or_compile_svg(src, prefix='', working_dir=None, full_err=False, tex_p
             print(err_msg, file=sys.stderr)
             return
 
-        cleanup_artifacts(working_dir, src_hash, svg_path, tex_path)
+        cleanup_artifacts(working_dir, src_hash, svg_file, tex_file)
 
-    with open(svg_path, "r") as fp:
-        return SVG(fp.read())
+    return tex_file,svg_file
 
+def html_img_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+
+    _,svg_file = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+    return f'<img src="{svg_file}">'
+
+def svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+svg_from_tex(src, prefix='', working_dir=None, full_err=False, debug=False, tex_program=["pdflatex"], svg_converter=[["pdf2svg"],".pdf"], svg_crop=None, nexec=1, keep_file=None):
+    '''
+
+    tex_file,svg_file = svg_file_from_tex(src, prefix, working_dir, full_err, debug, tex_program, svg_converter, svg_crop, nexec, keep_file)
+
+    with open(svg_file, "r") as fp:
+        return fp.read()
 
 def cleanup_artifacts(working_dir, src_hash, *retaining):
-    glob = "*{}*".format(src_hash)
-
-    for file_name in fnmatch.filter(os.listdir(working_dir), glob):
-        file_path = os.path.join(working_dir or '', file_name)
-        if file_path not in retaining:
-            os.unlink(file_path)
-
+    files = working_dir.glob(f'**/*{src_hash}*')
+    for f in files:
+        if f not in retaining:
+            f.unlink()
 
 def load_and_interpolate_jinja2(src, ns):
     # The FileSystemLoader should operate in the current working directory.
     # By assumption, extended jinja templates aren't temporary files --
     # the user wrote them by hand. They are part of code you would want in
     # your repository!
-    fs_loader = jinja2.FileSystemLoader(os.getcwd())
+    fs_loader = jinja2.FileSystemLoader(Path.cwd())
     tmpl_env = jinja2.Environment(loader=fs_loader)
 
     # The final template -- the one that may extend a custom template --
@@ -199,9 +403,6 @@ class TikZMagics(Magics):
 
             src = ipython_ns[args.k]
 
-        if args.implicit_pic and args.implicit_standalone:
-            print("Can't use --implicit-standalone and --implicit-pic",
-                  file=sys.stderr)
             return None
 
         # Jinja processing comes BEFORE implicit pic or standalone processing!
@@ -218,14 +419,30 @@ class TikZMagics(Magics):
                 print(src)
                 return
 
-        if args.implicit_pic:
-            src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
-        elif args.implicit_standalone:
-            tmpl_args = build_template_args(src, args)
-            src = IMPLICIT_STANDALONE.substitute(tmpl_args)
+        if args.implicit_template is not None:
+            if args.implicit_template == "pic":
+                src = IMPLICIT_PIC_TMPL.substitute(build_template_args(src, args))
+            elif args.implicit_template == "standalone":
+                tmpl_args = build_template_args(src, args)
+                src = IMPLICIT_STANDALONE.substitute(tmpl_args)
+            elif args.implicit_template == "article":
+                tmpl_args = build_template_args(src, args)
+                src = IMPLICIT_ARTICLE.substitute(tmpl_args)
+            else:
+                print( "no implicit template '", args.implicit_template, "'" )
+                print( "   known templates are one of: 'pic, standalone, article', else use jinja" )
+                return
 
-        svg = fetch_or_compile_svg(src, args.file_prefix, get_cwd(args),
-                                   args.full_err, args.tex_program)
+        if args.debug:
+            print(">>>> program args: ", args.tex_program, args.use_dvi, args.use_xetex)
+
+        nexec = int(args.nexec)
+        tex_program,svg_converter,svg_crop =  build_commands( args.tex_program, [["pdf2svg"],".pdf"], args.use_xetex, args.use_dvi, args.crop, nexec)
+
+        #print("EXA **** working dir<<<<", get_cwd(args), ">>>>")
+        working_dir = None if args.temp_dir == False else args.temp_dir
+        svg = fetch_or_compile_svg(src, args.file_prefix, working_dir,
+                                   args.full_err, args.debug, tex_program, svg_converter, svg_crop, nexec, args.keep_file)
 
         if svg is None:
             return None
@@ -246,8 +463,14 @@ class TikZMagics(Magics):
 def build_template_args(src, args):
     extras = []
 
+    pattern = re.compile( r'(\[[^]]*])(.*)' )
     if args.tex_packages:
-        extras.append(r"\usepackage{" + args.tex_packages + "}")
+        for package in args.tex_packages.split(','):
+            match = pattern.match( package )
+            if match:
+                extras.append( r"\usepackage" + match.group(1) + "{" + match.group(2)+ "}" )
+            else:
+                extras.append(r"\usepackage{" + package + "}")
 
     if args.tikz_libraries:
         extras.append(r"\usetikzlibrary{" + args.tikz_libraries + "}")
