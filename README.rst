@@ -29,7 +29,7 @@ Prerequisites:
 * inkscape   (ensure inkscape is on the path)
 * pdf2svg    (https://github.com/jalios/pdf2svg-windows  enure the selected directory is on the path)
 
-Install itikz with `python setup.py install`
+Install itikz with `python -m pip install`
 
 To see the directories in your pythonpath, execute the following in python:
 
