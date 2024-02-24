@@ -1209,7 +1209,7 @@ class BacksubstitutionCascade:
         def mk_args( bs ):
             mbs = [ f"   {{$\\boxed{{ {bs[0]}  }}$}}%" ]
             for term in bs[1:]:
-                mbs.append( [f"   {{${term[0]}$}}%", f"   {{$\;\Rightarrow\; \\boxed{{ {term[1]} }}$}}%"])
+                mbs.append( [f"   {{${term[0]}$}}%", f"   {{$\\;\\Rightarrow\; \\boxed{{ {term[1]} }}$}}%"])
             return mbs
 
         mbs   = mk_args(bs)
