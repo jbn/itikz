@@ -22,7 +22,7 @@ logger.setLevel( logging.DEBUG )
 
 __author__ = """John Bjorn Nelson"""
 __email__ = 'jbn@abreka.com'
-__version__ = '0.1.6ea'
+__version__ = '0.1.7'
 
 
 IMPLICIT_PIC_TMPL = Template(r"""\documentclass[tikz]{standalone}
