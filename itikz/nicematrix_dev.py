@@ -184,37 +184,27 @@ $\begin{NiceArray}[vlines-in-sub-matrix = I]{{mat_format}}{{mat_options}}%
 # ================================================================================================================================
 def convert_tuple_array_to_rationals(A):
     '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
-    print("DBG convert_tuple_array_to_rationals", A)
     return sym.Matrix( [[sym.Rational(num, denom) for num, denom in row] for row in A] )
 
 def convert_tuple_list_to_rationals(A):
-    print("DBG convert_tuple_list_to_rationals", A)
     '''overcome the limitations of the PyCall interface: convert integer tuples to rationals'''
     return sym.Matrix( [sym.Rational(num, denom) for num, denom in A] )
 
 def convert_to_sympy_matrix(A):
     if A is None: return None
-    print("DBG convert_to_sympy_matrix", A)
     if isinstance( A, list):
         if isinstance( A[0], list):
-            print(".  DBG 1")
             if isinstance(A[0][0], tuple ):      # list of list of tuples
                 A = convert_tuple_array_to_rationals(A)
-                print(".  DBG 1a", A)
             else:                                # list of list of values
                 A   = sym.Matrix(A)
-                print(".  DBG 1b", A)
         else:                                    # just a list
-            print(".  DBG 2")
             if isinstance(A[0], tuple ):         # list of tuples
                 A = convert_tuple_list_to_rationals(A)
-                print(".  DBG 2a", A)
             else:
                 A = sym.Matrix(A)
-                print(".  DBG 2b", A)
     else:                                         # not a list; should be matrix
         A   = sym.Matrix(A)
-        print(".  DBG 3", A)
     return A
 # ================================================================================================================================
 # Index Computations and formating associated with Matrices laid out on a grid.
@@ -1051,8 +1041,6 @@ def gram_schmidt_qr( A_, W_, formater=sym.latex, fig_scale=None, tmp_dir="tmp" )
 # ==================================================================================================
 class BacksubstitutionCascade:
     def __init__(self, ref_A, ref_rhs = None ):
-        print( "DBG: __init__ ", ref_A)
-        print( "DBG: __init__ ", ref_rhs)
         self.ref_syseq( ref_A, ref_rhs=ref_rhs)
 
     @classmethod
@@ -1062,23 +1050,13 @@ class BacksubstitutionCascade:
             ref_A   = [row[0:-1]  for row in ref_Ab]
             ref_rhs = [row[-1]    for row in ref_Ab]
         else:
-            print("DBG: ?????", type(ref_Ab))
             ref_A   = ref_Ab[:,0:-1]
             ref_rhs = ref_Ab[:,-1]
-        print( "DBG", ref_A)
-        print( "DBG", ref_rhs)
         return cls( ref_A, ref_rhs )
 
     def ref_syseq(self, ref_A, ref_rhs = None ):
-        print( "DBG: in ref_syseq")
-        print( ".  DBG  got ref_A", ref_A)
-        print( ".  DBG  got ref_rhs", ref_rhs)
         self.ref_A   = convert_to_sympy_matrix( ref_A )
         self.ref_rhs = convert_to_sympy_matrix( ref_rhs )
-
-        print( "DBG: in ref_syseq after convert")
-        print( ".  DBG: ref_A   =", self.ref_A)
-        print( ".  DBG: ref_rhs =", self.ref_rhs)
 
         if ref_rhs is None:
             self.rref_A, self.pivot_cols = self.ref_A.rref()
@@ -1086,7 +1064,6 @@ class BacksubstitutionCascade:
         else:
             Ab = self.ref_A.row_join( self.ref_rhs )
             rref_Ab, pivot_cols_Ab = Ab.rref()
-            print( ".  DBG rref = ")
             self.rref_A   = rref_Ab[:,0:-1]
             self.rref_rhs = rref_Ab[:,-1]
             if pivot_cols_Ab[-1] == self.rref_A.shape[1]:
@@ -1096,7 +1073,6 @@ class BacksubstitutionCascade:
 
         #return cls( ref_Ab[:,0:-1], ref_Ab[:,-1] )
 
-        print( "DBG: pivots", self.pivot_cols)
         self.free_cols = [ i for i in range(self.ref_A.shape[1]) if i not in self.pivot_cols]
         self.rank      = len(    self.pivot_cols)
 
@@ -1212,12 +1188,9 @@ class BacksubstitutionCascade:
 
             return s
 
-        print( "gensystem equations ", A)
-        print( "gensystem equations ", b)
         A   = convert_to_sympy_matrix( A )
         b   = convert_to_sympy_matrix( b )
-        #A   = sym.Matrix( A )
-        #b   = sym.Matrix( b ).reshape( A.shape[0], 1 )
+
         eqs = []
         for i in range( A.shape[0] ):
             terms = []
@@ -1236,7 +1209,7 @@ class BacksubstitutionCascade:
         def mk_args( bs ):
             mbs = [ f"   {{$\\boxed{{ {bs[0]}  }}$}}%" ]
             for term in bs[1:]:
-                mbs.append( [f"   {{${term[0]}$}}%", f"   {{$\;\Rightarrow\; \\boxed{{ {term[1]} }}$}}%"])
+                mbs.append( [f"   {{${term[0]}$}}%", f"   {{$\\;\\Rightarrow\\; \\boxed{{ {term[1]} }}$}}%"])
             return mbs
 
         mbs   = mk_args(bs)
