@@ -18,7 +18,9 @@ eggs/
 lib/
 lib64/
 parts/
+pantigny/
 sdist/
+tmp/
 var/
 wheels/
 *.egg-info/

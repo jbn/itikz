@@ -1,0 +1,20 @@
+--- /usr/bin/latexmk    2024-02-01 23:08:52.000000000 +0000
++++ latexmk     2024-10-13 01:27:51.188858223 +0000
+@@ -2320,7 +2320,7 @@
+ }
+
+ if ( $diagnostics || $rc_report ) {
+-    show_array( "Rc files read:", @rc_files_read );
++    show_array( "Rc files read:", @rc_files_read ) unless $silent;
+ }
+
+ if ( $bad_options > 0 ) {
+@@ -9475,7 +9475,7 @@
+
+     $pass{$rule}++;
+
+-    warn_running( "Run number $pass{$rule} of rule '$rule'" );
++    warn_running( "Run number $pass{$rule} of rule '$rule'" ) unless silent;
+     $return = &rdb_run1;
+
+     if ($$Pchanged) {
